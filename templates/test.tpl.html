@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link type="text/css" rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="content">
+      <div class="title">
+        <h1>{{ nombre | upper }} (PREGUNTAS {{ start }} a {{ end }})</h1>
+        <hr>
+        <h2>{{ tiempo }}</h2>
+      </div>
+      <ol class="items" start="{{ start }}">
+      {{ items | safe }}
+      </ol>
+      
+      <div class="fin">
+        {% if not last %}
+        <h3>NO PASE ADELANTE HASTA QUE SE LE INDIQUE.</h3>
+        {% else %}
+        <h3>FIN DE PRUEBA</h3>
+        {% endif %}
+        <hr>
+        <h4>(Puede revisar solo las preguntas correspondientes a {{ nombre }})</h4>
+      </div>
+    </div>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        "HTML-CSS":{
+          styles: {
+            ".MathJax_Display": {
+              "text-align": "center",
+              margin:       "1em 0em",
+              display: "inline"
+            },
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
