@@ -249,10 +249,11 @@ resultados.empty()
 
 def procesar():
   global resultados
-  with st.spinner('Generando archivos...'):
-    ruta_zip = asyncio.run(generate())
-    resultados.header("Archivos generados")
-    with open(ruta_zip,'rb') as file:
-      resultados.download_button("Descargar Archivos",data=file,file_name=ruta_zip.split('/')[-1],mime="application/zip")
+  with resultados:
+    with st.spinner('Generando archivos...'):
+      ruta_zip = asyncio.run(generate())
+      st.header("Archivos generados")
+      with open(ruta_zip,'rb') as file:
+        st.download_button("Descargar Archivos",data=file,file_name=ruta_zip.split('/')[-1],mime="application/zip")
 
 btn = submit.button('PROCESAR',on_click=procesar)
