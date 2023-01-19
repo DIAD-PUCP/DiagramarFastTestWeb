@@ -150,6 +150,7 @@ async def generate_background(fname,num_pages=2,start_page=1,sec_num=1,sec_name=
 
 async def generate_final_pdf(examen,start_page=2):
   global pwd
+  secciones = []
   for i,sec in enumerate(examen['secciones']):
     reader = PdfReader(f"{pwd.name}/{sec['nombre']}.pdf")
     num_pages = len(reader.pages)
@@ -157,11 +158,14 @@ async def generate_final_pdf(examen,start_page=2):
     start_page = start_page + num_pages
     
   for i,sec in enumerate(examen['secciones']):
-    subprocess.call(f"pdftk \"{pwd.name}/{sec['nombre']}.pdf\" multibackground \"{pwd.name}/{sec['nombre']}-background.pdf\" output \"{pwd.name}/{sec['nombre']}-final.pdf\"",shell=True)
+    outname = f"{pwd.name}/{sec['nombre']}-{examen['código']}.pdf"
+    subprocess.call(f"pdftk \"{pwd.name}/{sec['nombre']}.pdf\" multibackground \"{pwd.name}/{sec['nombre']}-background.pdf\" output \"{outname}\"",shell=True)
+    secciones.append(outname)
 
-  total = ' '.join([f"\"{pwd.name}/{sec['nombre']}-final.pdf\"" for sec in examen['secciones']])
-  subprocess.call(f"pdftk {total} cat output \"{pwd.name}/PRUEBA-{examen['versión']}-{examen['código']}.pdf\"",shell=True)
-  return f"{pwd.name}/PRUEBA-{examen['versión']}-{examen['código']}.pdf"
+  total = ' '.join([f"\"{pwd.name}/{sec['nombre']}-{examen['código']}.pdf\"" for sec in examen['secciones']])
+  outname = f"{pwd.name}/PRUEBA-{examen['versión']}-{examen['código']}.pdf"
+  subprocess.call(f"pdftk {total} cat output \"{outname}\"",shell=True)
+  return [outname] + secciones
 
 def generate_anskey(examen,df):
   global pwd
@@ -208,12 +212,13 @@ async def generate():
     handleSIGHUP=False)
 
   await generate_htmls(examen,df)
-  ruta_final = await generate_final_pdf(examen)
+  rutas = await generate_final_pdf(examen)
   ruta_clave = generate_anskey(examen,df)
   await browser.close()
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
-    z.write(ruta_final,arcname=ruta_final.split('/')[-1])
+    for ruta_final in rutas:
+      z.write(ruta_final,arcname=ruta_final.split('/')[-1])
     z.write(ruta_clave,arcname=ruta_clave.split('/')[-1])
   return ruta_zip
 
