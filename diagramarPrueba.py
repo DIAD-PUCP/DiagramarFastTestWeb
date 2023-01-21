@@ -94,7 +94,7 @@ def process_items(examen,df):
   # generar el orden de las alternativas
   rng = default_rng(examen['código'])
   op = np.arange(1,5)
-  df['orden'] = df.apply(lambda x: rng.permutation(op),axis=1)
+  df['orden'] = df.apply(lambda x: rng.permutation(op) if x['Alternativas en enunciado']!=True else op,axis=1)
   # calcular la nueva "clave"
   df['clave'] = df['orden'].apply(lambda x: np.nonzero(x ==1)[0][0] +1)
 
@@ -111,10 +111,11 @@ def render(item_tpl,item,examen):
     num_texto = item['numtext'],
     salto = item['Salto'],
     resaltar_clave = examen['resaltar_clave'],
-    clave = item['clave']
+    clave = item['clave'],
+    ocultar_alternativas = item['Alternativas en enunciado'],
   )
 
-async def generate_htmls(examen,df):
+async def generate_content(examen,df):
   prueba_tpl = jinja_env.get_template('test.tpl.html')
   n = 1
   page = await browser.newPage()
@@ -140,7 +141,12 @@ async def generate_background(fname,num_pages=2,start_page=1,sec_num=1,sec_name=
   global browser
   global pwd
   tpl = jinja_env.get_template('background.tpl.html')
-  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec_name)
+  numchars = len(sec_name)
+  if numchars < 22:
+    namesize = 2.5
+  else:
+    namesize = 2.5 *(1-((numchars-21)/(numchars-1)))
+  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec_name,size=namesize)
   with open(f'{pwd.name}/{fname}.html','w') as f:
     f.write(html)
   page = await browser.newPage()
@@ -169,9 +175,13 @@ async def generate_final_pdf(examen,start_page=2):
 
 def generate_anskey(examen,df):
   global pwd
-  df.loc[~df['EsPadre'],'clave'].apply(
+  items = df[~df['EsPadre']]
+  claves = items['clave'].apply(
     lambda x: chr(64+x)
-  ).rename(examen['versión']).to_excel(
+  )
+  
+  claves = np.where(items['Alternativas en enunciado']==True,items['Answer 1'].str[3:-4],claves)
+  pd.DataFrame(claves,columns=[examen['versión']]).to_excel(
     f"{pwd.name}/CLAVE-{examen['versión']}-{examen['código']}.xlsx",
     index=False
   )
@@ -211,7 +221,7 @@ async def generate():
     handleSIGTERM=False,
     handleSIGHUP=False)
 
-  await generate_htmls(examen,df)
+  await generate_content(examen,df)
   rutas = await generate_final_pdf(examen)
   ruta_clave = generate_anskey(examen,df)
   await browser.close()
@@ -221,6 +231,8 @@ async def generate():
       z.write(ruta_final,arcname=ruta_final.split('/')[-1])
     z.write(ruta_clave,arcname=ruta_clave.split('/')[-1])
   return ruta_zip
+
+# Streamlit - para generar la "estructura" de la prueba
 
 st.title('Diagramar prueba - FastTestWeb')
 

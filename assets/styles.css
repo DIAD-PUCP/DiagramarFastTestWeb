@@ -90,6 +90,10 @@ ol.items{
   font-weight: bold;
 }
 
+.item .description.noalt > p:not(:first-child){
+  font-weight: bold;
+}
+
 li.choice.resaltar {
   background-color: yellow;
 }
