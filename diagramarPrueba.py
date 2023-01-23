@@ -29,6 +29,8 @@ def load_files(examen):
     d['Pos'] = d['Pos'] + 1
     d['EsPadre'] = d['Total Points'] == 0.0
     d['Salto'] = False
+    d['Blanca'] = False
+    d['Ultimo'] = False
     # Renumerar la prueba sin contar a los padres
     d = d.join(d.loc[d['EsPadre']==False,'Pos'].rank().rename('Ord_y'))
     d['Ord_y'] = d['Ord_y'].fillna(0).astype(int)
@@ -37,6 +39,9 @@ def load_files(examen):
     
     for s in sec['saltos']:
       d.loc[d['Ord']==s,'Salto'] = True
+    for b in sec['blancas']:
+      d.loc[d['Ord']==b,'Blanca'] = True
+    d.loc[d.iloc[-1:].index,'Ultimo'] = True
     l.append(d)
   df = pd.concat(l)
   return df
@@ -110,6 +115,7 @@ def render(item_tpl,item,examen):
     padre = item['EsPadre'],
     num_texto = item['numtext'],
     salto = item['Salto'],
+    blanca = item['Blanca'],
     resaltar_clave = examen['resaltar_clave'],
     clave = item['clave'],
     ocultar_alternativas = item['Alternativas en enunciado'],
@@ -256,8 +262,11 @@ for i in range(examen['nsecciones']):
     'archivo': container.file_uploader(f'Archivo {i+1}'),
     'nombre': container.text_input(f'Nombre {i+1}'),
     'tiempo': container.text_input(f'Tiempo {i+1}'),
-    'saltos': container.text_input(f'Saltos {i+1}')
+    'saltos': container.text_input(f'Saltos de página {i+1}'),
+    'blancas': container.text_input(f'Páginas en blanco {i+1}'),
   }
+  sec['saltos'] = [int(i) for i in sec['saltos'].split(',') if sec['saltos']!='']
+  sec['blancas'] = [int(i) for i in sec['blancas'].split(',') if sec['blancas']!='']
   examen['secciones'].append(sec)
 
 submit = st.container()

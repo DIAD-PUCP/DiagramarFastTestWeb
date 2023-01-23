@@ -75,6 +75,12 @@ ol.items{
   page-break-before: always;
 }
 
+.page-blanca{
+  text-align: center;
+  page-break-before: always;
+  page-break-after: always;
+}
+
 .choice>*{
   padding-left: 1em;
   margin-top: 0.2em;
