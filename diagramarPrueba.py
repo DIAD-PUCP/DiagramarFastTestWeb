@@ -245,9 +245,9 @@ st.title('Diagramar prueba - FastTestWeb')
 datos = st.container()
 
 examen = {
-  'versión': datos.text_input('Versión'),
-  'código' : datos.number_input('Código',value=0,format='%d'),
-  'resaltar_clave': datos.checkbox('Resaltar clave'),
+  'versión': datos.text_input('Versión',help='Es solo para el nombre del archivo'),
+  'código' : datos.number_input('Código',value=0,format='%d',help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'),
+  'resaltar_clave': datos.checkbox('Resaltar clave',help='Resalta la clave en amarillo para la revisión'),
   'nsecciones':datos.number_input('Número de secciones',value=3,format='%d'),
   'secciones': []
 }
@@ -259,11 +259,11 @@ for i in range(examen['nsecciones']):
   container = st.container()
   container.subheader(f'Sección {i+1}')
   sec = {
-    'archivo': container.file_uploader(f'Archivo {i+1}'),
-    'nombre': container.text_input(f'Nombre {i+1}'),
-    'tiempo': container.text_input(f'Tiempo {i+1}'),
-    'saltos': container.text_input(f'Saltos de página {i+1}'),
-    'blancas': container.text_input(f'Páginas en blanco {i+1}'),
+    'archivo': container.file_uploader(f'Archivo {i+1}',help='El archivo de metadata exportado por FastTestWeb'),
+    'nombre': container.text_input(f'Nombre {i+1}',help='Esta etiqueta sale en la primera página y tambien en los bordes'),
+    'tiempo': container.text_input(f'Tiempo {i+1}',help='Esta etiqueta sale en la primera página'),
+    'saltos': container.text_input(f'Saltos de página {i+1}',help='Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7'),
+    'blancas': container.text_input(f'Páginas en blanco {i+1}',help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'),
   }
   sec['saltos'] = [int(i) for i in sec['saltos'].split(',') if sec['saltos']!='']
   sec['blancas'] = [int(i) for i in sec['blancas'].split(',') if sec['blancas']!='']

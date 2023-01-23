@@ -97,7 +97,7 @@ ol.items{
 }
 
 .item .description.noalt > p:not(:first-child){
-  font-weight: bold;
+  font-weight: normal;
 }
 
 li.choice.resaltar {
