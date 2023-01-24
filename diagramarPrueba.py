@@ -136,7 +136,7 @@ async def generate_content(examen,df):
     with open(f"{pwd.name}/{sec['nombre']}.html",'w') as f:
       f.write(prueba)
     await page.goto(f"file://{pwd.name}/{sec['nombre']}.html",waitUntil='networkidle2')
-    #time.sleep(5)
+    time.sleep(2)
     await page.pdf({'path':f"{pwd.name}/{sec['nombre']}.pdf",'printBackground':True, 'format':'A4'}) 
 
   await page.close()
