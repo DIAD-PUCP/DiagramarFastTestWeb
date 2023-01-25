@@ -193,6 +193,28 @@ def generate_anskey(examen,df):
   )
   return f"{pwd.name}/CLAVE-{examen['versión']}-{examen['código']}.xlsx"
 
+def generate_estructura(df,examen):
+  global pwd
+  comp = pd.read_excel('Temas.xlsx',sheet_name='Competencia',dtype=str).set_index('Bank')
+  temas_com = pd.read_excel('Temas.xlsx',sheet_name='Comunicación',dtype=str).set_index('Category Path')
+  # Con el cambio a los nuevos temas esto no será necesario
+  if examen['versión'] == 'CIENCIAS':
+    temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Ciencias',dtype=str).set_index('Category Path')
+  else:
+    temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Letras',dtype=str).set_index('Category Path')
+  temas = pd.concat([temas_com,temas_mat])
+  ruta = f"{pwd.name}/Estructura-{examen['versión']}-{examen['código']}.xlsx"
+  est = df
+  est = est.join(comp,on='Bank')
+  est['Categoría'] = '02'
+  est['Error'] = ''
+  est = est.join(temas,on='Category Path')
+  est = est[['Item Name','Competencia','Tema','SubTema','Categoría','Stat 3','IRT b','Error']]
+  est['Posición'] = np.arange(est.shape[0])+1
+  est.columns=['CodPregunta OCA','Competencia','Tema','SubTema','Categoria','N','Medición','Error','Posición\npregunta']
+  est.to_excel(ruta,index=False)
+  return ruta
+
 jinja_env = jinja2.Environment(
   #donde están los templates, por defecto es la carpeta actual
   loader = jinja2.FileSystemLoader('templates'),autoescape= True
@@ -213,6 +235,7 @@ async def generate():
     shutil.copy(f'assets/{file}',f'{pwd.name}/{file}')
 
   df = load_files(examen)
+  ruta_estructura = generate_estructura(df[~df['EsPadre']],examen)
   df = process_items(examen,df)
 
   item_tpl = jinja_env.get_template('item.tpl.html')
@@ -236,6 +259,7 @@ async def generate():
     for ruta_final in rutas:
       z.write(ruta_final,arcname=ruta_final.split('/')[-1])
     z.write(ruta_clave,arcname=ruta_clave.split('/')[-1])
+    z.write(ruta_estructura,arcname=ruta_estructura.split('/')[-1])
   return ruta_zip
 
 # Streamlit - para generar la "estructura" de la prueba
@@ -245,7 +269,7 @@ st.title('Diagramar prueba - FastTestWeb')
 datos = st.container()
 
 examen = {
-  'versión': datos.text_input('Versión',help='Es solo para el nombre del archivo'),
+  'versión': datos.text_input('Versión',help='Es para el nombre de archivo y asignar los temas y subtemas en la estructura (CIENCIAS,LETRAS,ARTE)'),
   'código' : datos.number_input('Código',value=0,format='%d',help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'),
   'resaltar_clave': datos.checkbox('Resaltar clave',help='Resalta la clave en amarillo para la revisión'),
   'nsecciones':datos.number_input('Número de secciones',value=3,format='%d'),
