@@ -215,16 +215,6 @@ def generate_estructura(df,examen):
   est.to_excel(ruta,index=False)
   return ruta
 
-jinja_env = jinja2.Environment(
-  #donde están los templates, por defecto es la carpeta actual
-  loader = jinja2.FileSystemLoader('templates'),autoescape= True
-)
-
-#copiar los assets a un directorio temporal
-pwd = tempfile.TemporaryDirectory()
-
-browser = None
-
 async def generate():
   global jinja_env
   global pwd
@@ -262,6 +252,17 @@ async def generate():
     z.write(ruta_estructura,arcname=ruta_estructura.split('/')[-1])
   return ruta_zip
 
+
+jinja_env = jinja2.Environment(
+  #donde están los templates, por defecto es la carpeta actual
+  loader = jinja2.FileSystemLoader('templates'),autoescape= True
+)
+
+#copiar los assets a un directorio temporal
+pwd = tempfile.TemporaryDirectory()
+
+browser = None
+
 # Streamlit - para generar la "estructura" de la prueba
 
 st.title('Diagramar prueba - FastTestWeb')
@@ -297,13 +298,12 @@ submit = st.container()
 resultados = st.container()
 resultados.empty()
 
-def procesar():
-  global resultados
+btn = submit.button('PROCESAR',on_click=lambda:procesar(resultados))
+
+def procesar(resultados):
   with resultados:
     with st.spinner('Generando archivos...'):
       ruta_zip = asyncio.run(generate())
       st.header("Archivos generados")
       with open(ruta_zip,'rb') as file:
         st.download_button("Descargar Archivos",data=file,file_name=ruta_zip.split('/')[-1],mime="application/zip")
-
-btn = submit.button('PROCESAR',on_click=procesar)
