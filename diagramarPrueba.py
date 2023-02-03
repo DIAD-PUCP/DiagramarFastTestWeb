@@ -210,7 +210,7 @@ async def generate_content(examen,df,tpl,page=None,browser=None,path=os.getcwd()
     d = df.loc[df['Sec']==sec['nombre'],:]
     last = (i == (len(examen['secciones'])-1))
     generate_sec_html(d,sec,tpl,start,last,path)
-    start = start + d.shape[0]
+    start = start + d[d['EsPadre']==False].shape[0]
     await html2pdf(f"{sec['nombre']}.html",sleep_time=2,page=page,path=path)
 
 def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
