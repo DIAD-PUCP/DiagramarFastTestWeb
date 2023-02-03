@@ -20,17 +20,48 @@ from numpy.random import default_rng
 from PyPDF2 import PdfReader
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
+async def get_browser():
+  return await launch({
+        'executablePath':'/usr/bin/google-chrome-stable',
+        'headless':True,
+        'args':['--no-sandbox','--disable-setuid-sandbox']
+      },handleSIGINT=False,
+      handleSIGTERM=False,
+      handleSIGHUP=False)
+
+async def html2pdf(file,sleep_time=0,page=None,browser=None,path=os.getcwd()):
+  fname,extension = file.rsplit('.',1)
+  if extension != 'html':
+    raise ValueError(f"File {file} must be an html file")
+
+  if not page:
+    if not browser:
+      browser = await get_browser()
+    page = await browser.newPage()
+  
+  await page.goto(f"file://{path}/{fname}.html",waitUntil='networkidle2')
+  time.sleep(sleep_time)
+  await page.pdf({'path':f"{path}/{fname}.pdf",'printBackground':True, 'format':'A4'})
+
+def merge_pdf(files,fname,path=os.getcwd()):
+  outname = f"{path}/{fname}"
+  total = ' '.join([f"\"{file}\"" for file in files])
+  subprocess.call(f"pdftk {total} cat output \"{outname}\"",shell=True)
+  return outname
+
 def load_files(examen):
   l = []
   for i,sec in enumerate(examen['secciones']):
-    d = pd.read_excel(sec['archivo']).reset_index().rename(columns={'index':'Pos'}).set_index('Unique Id')
+    d = pd.read_excel(sec['archivo']).reset_index().rename(columns={'index':'Pos'})
+    d = d.set_index('Unique Id')
+    d['Pos'] = d['Pos'] + 1
     d['Sec'] = sec['nombre']
     d['Ord'] = i + 1
-    d['Pos'] = d['Pos'] + 1
     d['EsPadre'] = d['Total Points'] == 0.0
     d['Salto'] = False
     d['Blanca'] = False
     d['Ultimo'] = False
+    
     # Renumerar la prueba sin contar a los padres
     d = d.join(d.loc[d['EsPadre']==False,'Pos'].rank().rename('Ord_y'))
     d['Ord_y'] = d['Ord_y'].fillna(0).astype(int)
@@ -39,12 +70,62 @@ def load_files(examen):
     
     for s in sec['saltos']:
       d.loc[d['Ord']==s,'Salto'] = True
+    
     for b in sec['blancas']:
       d.loc[d['Ord']==b,'Blanca'] = True
+    
     d.loc[d.iloc[-1:].index,'Ultimo'] = True
+
     l.append(d)
+
   df = pd.concat(l)
+
+  #agregar numero de texto a los textos
+  df = df.join(df.loc[df['EsPadre'],'Pos'].rank().astype(int).astype(str).rename('numtext'))
+
+  # generar el orden de las alternativas
+  rng = default_rng(examen['código'])
+  op = np.arange(1,5)
+  df['orden'] = df.apply(lambda x: rng.permutation(op) if x['Alternativas en enunciado']!=True else op,axis=1)
+  # calcular la nueva "clave"
+  df['clave'] = df['orden'].apply(lambda x: np.nonzero(x ==1)[0][0] +1)
+
   return df
+
+def generate_anskey(examen,df,path=os.getcwd()):
+  items = df[~df['EsPadre']]
+  claves = items['clave'].apply(
+    lambda x: chr(64+x)
+  )
+  claves = np.where(items['Alternativas en enunciado']==True,items['Answer 1'].str[3:-4],claves)
+  name = f"{path}/CLAVE-{examen['versión']}-{examen['código']}.xlsx"
+  pd.DataFrame(claves,columns=[examen['versión']]).to_excel(
+    name,
+    index=False
+  )
+  return name
+
+def generate_estructura(examen,df,path=os.getcwd()):
+  items = df[~df['EsPadre']]
+  comp = pd.read_excel('Temas.xlsx',sheet_name='Competencia',dtype=str).set_index('Bank')
+  temas_com = pd.read_excel('Temas.xlsx',sheet_name='Comunicación',dtype=str).set_index('Category Path')
+  # Con el cambio a los nuevos temas esto no será necesario
+  if examen['versión'] == 'CIENCIAS':
+    temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Ciencias',dtype=str).set_index('Category Path')
+  else:
+    temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Letras',dtype=str).set_index('Category Path')
+  temas = pd.concat([temas_com,temas_mat])
+  ruta = f"{path}/ESTRUCTURA-{examen['versión']}-{examen['código']}.xlsx"
+  est = items
+  est = est.join(comp,on='Bank')
+  est['Categoría'] = '02'
+  est['Error'] = ''
+  est = est.join(temas,on='Category Path')
+  est = est[['Item Name','Competencia','Tema','SubTema','Categoría','Stat 3','IRT b','Error']]
+  est['Posición'] = np.arange(est.shape[0])+1
+  est.columns=['CodPregunta OCA','Competencia','Tema','SubTema','Categoria','N','Medición','Error','Posición\npregunta']
+  est.to_excel(ruta,index=False)
+  return ruta
 
 def replace_equations(markup):
   if pd.isna(markup):
@@ -73,10 +154,7 @@ def fix_images(markup):
     img['src'] = 'https://app.fasttestweb.com' + img['src']
   return str(soup.body)[6:-7]
 
-def process_items(examen,df):
-  #agregar numero de texto a los textos
-  df = df.join(df.loc[df['EsPadre'],'Pos'].rank().astype(int).astype(str).rename('numtext'))
-
+def process_items(df):
   # quitar algunos estilos
   df['Item Text'] = df['Item Text'].str.replace('style="font-family: \'times new roman\', times;"','')
   df['Item Text'] = df['Item Text'].str.replace('style="font-size: 12pt;"','')
@@ -96,16 +174,9 @@ def process_items(examen,df):
   df['Answer 3'] = df.apply(lambda x: fix_images(x['Answer 3']),axis=1)
   df['Answer 4'] = df.apply(lambda x: fix_images(x['Answer 4']),axis=1)
 
-  # generar el orden de las alternativas
-  rng = default_rng(examen['código'])
-  op = np.arange(1,5)
-  df['orden'] = df.apply(lambda x: rng.permutation(op) if x['Alternativas en enunciado']!=True else op,axis=1)
-  # calcular la nueva "clave"
-  df['clave'] = df['orden'].apply(lambda x: np.nonzero(x ==1)[0][0] +1)
-
   return df
 
-def render(item_tpl,item,examen):
+def render_item(item_tpl,item,examen):
   return item_tpl.render(
     description = item['Item Text'],
     answer1 = item[f'Answer {item["orden"][0]}'], #segun el vector generado cual debería ser la primera alternativa
@@ -121,147 +192,108 @@ def render(item_tpl,item,examen):
     ocultar_alternativas = item['Alternativas en enunciado'],
   )
 
-async def generate_content(examen,df):
-  prueba_tpl = jinja_env.get_template('test.tpl.html')
-  n = 1
-  page = await browser.newPage()
+def generate_sec_html(df,sec,tpl,start=1,last=False,path=os.getcwd()):
+  body = '\n'.join(df['html'])
+  end = start + df[df['EsPadre']==False].shape[0] -1
+  prueba = tpl.render(nombre=sec['nombre'],items=body,start=start,end = end, tiempo = sec['tiempo'],last=last)
+  with open(f"{path}/{sec['nombre']}.html",'w') as f:
+      f.write(prueba)
+
+async def generate_content(examen,df,tpl,page=None,browser=None,path=os.getcwd()):
+  start = 1
+  if not page:
+    if not browser:
+      browser = await get_browser()
+    page = await browser.newPage()
 
   for i,sec in enumerate(examen['secciones']):
     d = df.loc[df['Sec']==sec['nombre'],:]
-    body = '\n'.join(d['html'])
-    end = n + d[d['EsPadre']==False].shape[0] -1
-    last = True if i == (len(examen['secciones'])-1) else False
-    prueba = prueba_tpl.render(nombre=sec['nombre'],items=body,start=n,end = end, tiempo = sec['tiempo'],last=last)
-    n = n + d[d['EsPadre']==False].shape[0]
-    with open(f"{pwd.name}/{sec['nombre']}.html",'w') as f:
-      f.write(prueba)
-    await page.goto(f"file://{pwd.name}/{sec['nombre']}.html",waitUntil='networkidle2')
-    time.sleep(2)
-    await page.pdf({'path':f"{pwd.name}/{sec['nombre']}.pdf",'printBackground':True, 'format':'A4'}) 
+    last = (i == (len(examen['secciones'])-1))
+    generate_sec_html(d,sec,tpl,start,last,path)
+    await html2pdf(f"{sec['nombre']}.html",sleep_time=2,page=page,path=path)
 
-  await page.close()
-
-
-async def generate_background(fname,num_pages=2,start_page=1,sec_num=1,sec_name=""):
-  global jinja_env
-  global browser
-  global pwd
-  tpl = jinja_env.get_template('background.tpl.html')
-  numchars = len(sec_name)
+def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
+  reader = PdfReader(f"{path}/{sec['nombre']}.pdf")
+  num_pages = len(reader.pages)
+  numchars = len(sec['nombre'])
   if numchars < 22:
     namesize = 2.5
   else:
     namesize = 2.5 *(1-((numchars-21)/(numchars-1)))
-  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec_name,size=namesize)
-  with open(f'{pwd.name}/{fname}.html','w') as f:
+  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec['nombre'],size=namesize)
+  with open(f'{path}/{sec["nombre"]}-background.html','w') as f:
     f.write(html)
-  page = await browser.newPage()
-  await page.goto(f"file://{pwd.name}/{fname}.html",waitUntil='networkidle2')
-  await page.pdf({'path':f'{pwd.name}/{fname}.pdf','printBackground':True, 'format':'A4'})
-  await page.close()
+  return num_pages
 
-async def generate_final_pdf(examen,start_page=2):
-  global pwd
+async def generate_backgrounds(examen,tpl,start_page=2,page=None,browser=None,path=os.getcwd()):
+  if not page:
+    if not browser:
+      browser = await get_browser()
+    page = await browser.newPage()
+  
+  for i,sec in enumerate(examen['secciones']):
+    start_page += generate_background_html(sec,tpl,sec_num=i+1,start_page=start_page,path=path)
+    await html2pdf(f"{sec['nombre']}-background.html",sleep_time=0,page=page,path=path)
+
+def generate_sec_pdfs(examen,path=os.getcwd()):
   secciones = []
   for i,sec in enumerate(examen['secciones']):
-    reader = PdfReader(f"{pwd.name}/{sec['nombre']}.pdf")
-    num_pages = len(reader.pages)
-    await generate_background(f"{sec['nombre']}-background",num_pages=num_pages,start_page=start_page,sec_num=i+1,sec_name=sec['nombre'])
-    start_page = start_page + num_pages
-    
-  for i,sec in enumerate(examen['secciones']):
-    outname = f"{pwd.name}/{sec['nombre']}-{examen['código']}.pdf"
-    subprocess.call(f"pdftk \"{pwd.name}/{sec['nombre']}.pdf\" multibackground \"{pwd.name}/{sec['nombre']}-background.pdf\" output \"{outname}\"",shell=True)
+    outname = f"{path}/{sec['nombre']}-{examen['código']}.pdf"
+    subprocess.call(
+      f"pdftk \"{path}/{sec['nombre']}.pdf\" multibackground \"{path}/{sec['nombre']}-background.pdf\" output \"{outname}\"",
+      shell=True
+    )
     secciones.append(outname)
+  return secciones
 
-  total = ' '.join([f"\"{pwd.name}/{sec['nombre']}-{examen['código']}.pdf\"" for sec in examen['secciones']])
-  outname = f"{pwd.name}/PRUEBA-{examen['versión']}-{examen['código']}.pdf"
-  subprocess.call(f"pdftk {total} cat output \"{outname}\"",shell=True)
-  return [outname] + secciones
-
-def generate_anskey(examen,df):
-  global pwd
-  items = df[~df['EsPadre']]
-  claves = items['clave'].apply(
-    lambda x: chr(64+x)
+async def generate(examen):
+  jinja_env = jinja2.Environment(
+    #donde están los templates, por defecto es la carpeta actual
+    loader = jinja2.FileSystemLoader('templates'),autoescape= True
   )
-  
-  claves = np.where(items['Alternativas en enunciado']==True,items['Answer 1'].str[3:-4],claves)
-  pd.DataFrame(claves,columns=[examen['versión']]).to_excel(
-    f"{pwd.name}/CLAVE-{examen['versión']}-{examen['código']}.xlsx",
-    index=False
-  )
-  return f"{pwd.name}/CLAVE-{examen['versión']}-{examen['código']}.xlsx"
 
-def generate_estructura(df,examen):
-  global pwd
-  comp = pd.read_excel('Temas.xlsx',sheet_name='Competencia',dtype=str).set_index('Bank')
-  temas_com = pd.read_excel('Temas.xlsx',sheet_name='Comunicación',dtype=str).set_index('Category Path')
-  # Con el cambio a los nuevos temas esto no será necesario
-  if examen['versión'] == 'CIENCIAS':
-    temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Ciencias',dtype=str).set_index('Category Path')
-  else:
-    temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Letras',dtype=str).set_index('Category Path')
-  temas = pd.concat([temas_com,temas_mat])
-  ruta = f"{pwd.name}/Estructura-{examen['versión']}-{examen['código']}.xlsx"
-  est = df
-  est = est.join(comp,on='Bank')
-  est['Categoría'] = '02'
-  est['Error'] = ''
-  est = est.join(temas,on='Category Path')
-  est = est[['Item Name','Competencia','Tema','SubTema','Categoría','Stat 3','IRT b','Error']]
-  est['Posición'] = np.arange(est.shape[0])+1
-  est.columns=['CodPregunta OCA','Competencia','Tema','SubTema','Categoria','N','Medición','Error','Posición\npregunta']
-  est.to_excel(ruta,index=False)
-  return ruta
+  #copiar los assets a un directorio temporal
+  pwd = tempfile.TemporaryDirectory()
 
-async def generate():
-  global jinja_env
-  global pwd
-  global browser
-  global examen
-
-  for file in os.listdir('assets'):
+  for file in os.listdir(f'assets'):
     shutil.copy(f'assets/{file}',f'{pwd.name}/{file}')
-
+  
   df = load_files(examen)
-  ruta_estructura = generate_estructura(df[~df['EsPadre']],examen)
-  df = process_items(examen,df)
 
+  #generar archivo de estructura y archivo de claves
+  ruta_estructura = generate_estructura(examen,df,path=pwd.name)
+  ruta_clave = generate_anskey(examen,df,path=pwd.name)
+
+  df = process_items(df)
+
+  # Generar el html de cada ítem
   item_tpl = jinja_env.get_template('item.tpl.html')
-  df['html'] = df.apply(lambda x: render(item_tpl,x,examen),axis=1)
+  df['html'] = df.apply(lambda x: render_item(item_tpl,x,examen),axis=1)
 
   # Objetos para convertir un html a pdf usando chromium
-  browser = await launch({
-      'executablePath':'/usr/bin/google-chrome-stable',
-      'headless':True,
-      'args':['--no-sandbox','--disable-setuid-sandbox']
-    },handleSIGINT=False,
-    handleSIGTERM=False,
-    handleSIGHUP=False)
+  browser = await get_browser()
+  page = await browser.newPage()
 
-  await generate_content(examen,df)
-  rutas = await generate_final_pdf(examen)
-  ruta_clave = generate_anskey(examen,df)
+  prueba_tpl = jinja_env.get_template('test.tpl.html')
+  await generate_content(examen,df,prueba_tpl,page=page,path=pwd.name)
+
+  background_tpl = jinja_env.get_template('background.tpl.html')
+  await generate_backgrounds(examen,background_tpl,start_page=2,page=page,path=pwd.name)
+  
+  rutas = generate_sec_pdfs(examen,path=pwd.name)
+  
+  await page.close()
   await browser.close()
+
+  ruta_final = merge_pdf(rutas,f"PRUEBA-{examen['versión']}-{examen['código']}.pdf",path=pwd.name)
+  
+  rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
+  
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
     for ruta_final in rutas:
       z.write(ruta_final,arcname=ruta_final.split('/')[-1])
-    z.write(ruta_clave,arcname=ruta_clave.split('/')[-1])
-    z.write(ruta_estructura,arcname=ruta_estructura.split('/')[-1])
-  return ruta_zip
-
-
-jinja_env = jinja2.Environment(
-  #donde están los templates, por defecto es la carpeta actual
-  loader = jinja2.FileSystemLoader('templates'),autoescape= True
-)
-
-#copiar los assets a un directorio temporal
-pwd = tempfile.TemporaryDirectory()
-
-browser = None
+  return ruta_zip,pwd
 
 # Streamlit - para generar la "estructura" de la prueba
 
@@ -270,10 +302,25 @@ st.title('Diagramar prueba - FastTestWeb')
 datos = st.container()
 
 examen = {
-  'versión': datos.text_input('Versión',help='Es para el nombre de archivo y asignar los temas y subtemas en la estructura (CIENCIAS,LETRAS,ARTE)'),
-  'código' : datos.number_input('Código',value=0,format='%d',help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'),
-  'resaltar_clave': datos.checkbox('Resaltar clave',help='Resalta la clave en amarillo para la revisión'),
-  'nsecciones':datos.number_input('Número de secciones',value=3,format='%d'),
+  'versión': datos.text_input(
+    'Versión',
+    help='Es para el nombre de archivo y asignar los temas y subtemas en la estructura (CIENCIAS,LETRAS,ARTE)'
+  ),
+  'código' : datos.number_input(
+    'Código',
+    value=0,
+    format='%d',
+    help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'
+  ),
+  'resaltar_clave': datos.checkbox(
+    'Resaltar clave',
+    help='Resalta la clave en amarillo para la revisión'
+  ),
+  'nsecciones':datos.number_input(
+    'Número de secciones',
+    value=3,
+    format='%d'
+  ),
   'secciones': []
 }
 
@@ -284,11 +331,26 @@ for i in range(examen['nsecciones']):
   container = st.container()
   container.subheader(f'Sección {i+1}')
   sec = {
-    'archivo': container.file_uploader(f'Archivo {i+1}',help='El archivo de metadata exportado por FastTestWeb'),
-    'nombre': container.text_input(f'Nombre {i+1}',help='Esta etiqueta sale en la primera página y tambien en los bordes'),
-    'tiempo': container.text_input(f'Tiempo {i+1}',help='Esta etiqueta sale en la primera página'),
-    'saltos': container.text_input(f'Saltos de página {i+1}',help='Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7'),
-    'blancas': container.text_input(f'Páginas en blanco {i+1}',help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'),
+    'archivo': container.file_uploader(
+      f'Archivo {i+1}',
+      help='El archivo de metadata exportado por FastTestWeb'
+    ),
+    'nombre': container.text_input(
+      f'Nombre {i+1}',
+      help='Esta etiqueta sale en la primera página y tambien en los bordes'
+    ),
+    'tiempo': container.text_input(
+      f'Tiempo {i+1}',
+      help='Esta etiqueta sale en la primera página'
+    ),
+    'saltos': container.text_input(
+      f'Saltos de página {i+1}',
+      help='Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7'
+    ),
+    'blancas': container.text_input(
+      f'Páginas en blanco {i+1}',
+      help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'
+    ),
   }
   sec['saltos'] = [int(i) for i in sec['saltos'].split(',') if sec['saltos']!='']
   sec['blancas'] = [int(i) for i in sec['blancas'].split(',') if sec['blancas']!='']
@@ -298,12 +360,18 @@ submit = st.container()
 resultados = st.container()
 resultados.empty()
 
-btn = submit.button('PROCESAR',on_click=lambda:procesar(resultados))
+btn = submit.button('PROCESAR',on_click=lambda:procesar(resultados,examen))
 
-def procesar(resultados):
+def procesar(resultados,examen):
   with resultados:
     with st.spinner('Generando archivos...'):
-      ruta_zip = asyncio.run(generate())
+      ruta_zip,tmp = asyncio.run(generate(examen))
+      print(tmp.name)
       st.header("Archivos generados")
       with open(ruta_zip,'rb') as file:
-        st.download_button("Descargar Archivos",data=file,file_name=ruta_zip.split('/')[-1],mime="application/zip")
+        st.download_button(
+          "Descargar Archivos",
+          data=file,
+          file_name=ruta_zip.split('/')[-1],
+          mime="application/zip"
+        )
