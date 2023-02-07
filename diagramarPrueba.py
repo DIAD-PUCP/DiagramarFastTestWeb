@@ -95,7 +95,7 @@ def load_files(examen):
   df['orden'] = df.apply(lambda x: rng.permutation(op) if x['Alternativas en enunciado']!=True else op,axis=1)
   # calcular la nueva "clave"
   df['clave'] = df['orden'].apply(lambda x: np.nonzero(x ==1)[0][0] +1)
-  st.write(df)
+  #st.write(df)
   return df
 
 def generate_anskey(examen,df,path=os.getcwd()):
