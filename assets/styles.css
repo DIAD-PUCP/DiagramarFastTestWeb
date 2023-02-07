@@ -85,6 +85,9 @@ ol.items{
   page-break-before: always;
   page-break-after: always;
 }
+.continue{
+  text-align: center;
+}
 
 .choice>*{
   padding-left: 1em;

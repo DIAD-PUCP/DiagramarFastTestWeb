@@ -59,6 +59,7 @@ def load_files(examen):
     d['Ord'] = i + 1
     d['EsPadre'] = d['Total Points'] == 0.0
     d['Salto'] = False
+    d['Continue'] = False
     d['Blanca'] = False
     d['Ultimo'] = False
     
@@ -69,6 +70,11 @@ def load_files(examen):
     d = d.drop(columns='Ord_y')
     
     for s in sec['saltos']:
+      if s[-1] == '*':
+        s = int(s[:-1])
+        d.loc[d['Ord']==s,'Continue'] = True
+      else:
+        s = int(s)
       d.loc[d['Ord']==s,'Salto'] = True
     
     for b in sec['blancas']:
@@ -89,7 +95,7 @@ def load_files(examen):
   df['orden'] = df.apply(lambda x: rng.permutation(op) if x['Alternativas en enunciado']!=True else op,axis=1)
   # calcular la nueva "clave"
   df['clave'] = df['orden'].apply(lambda x: np.nonzero(x ==1)[0][0] +1)
-
+  st.write(df)
   return df
 
 def generate_anskey(examen,df,path=os.getcwd()):
@@ -186,6 +192,7 @@ def render_item(item_tpl,item,examen):
     padre = item['EsPadre'],
     num_texto = item['numtext'],
     salto = item['Salto'],
+    cont = item['Continue'],
     blanca = item['Blanca'],
     resaltar_clave = examen['resaltar_clave'],
     clave = item['clave'],
@@ -353,7 +360,7 @@ for i in range(examen['nsecciones']):
       help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'
     ),
   }
-  sec['saltos'] = [int(i) for i in sec['saltos'].split(',') if sec['saltos']!='']
+  sec['saltos'] = [i for i in sec['saltos'].split(',') if sec['saltos']!='']
   sec['blancas'] = [int(i) for i in sec['blancas'].split(',') if sec['blancas']!='']
   examen['secciones'].append(sec)
 
