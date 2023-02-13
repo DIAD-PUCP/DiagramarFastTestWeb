@@ -246,7 +246,7 @@ async def generate_backgrounds(examen,tpl,start_page=2,page=None,browser=None,pa
 def generate_sec_pdfs(examen,path=os.getcwd()):
   secciones = []
   for i,sec in enumerate(examen['secciones']):
-    outname = f"{path}/{sec['nombre']}-{examen['código']}.pdf"
+    outname = f"{path}/{sec['nombre']}-{examen['versión']}-{examen['código']}.pdf"
     subprocess.call(
       f"pdftk \"{path}/{sec['nombre']}.pdf\" multibackground \"{path}/{sec['nombre']}-background.pdf\" output \"{outname}\"",
       shell=True
