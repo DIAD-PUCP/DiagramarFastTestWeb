@@ -2,10 +2,21 @@ FROM python:3.10.9-slim-bullseye
 
 WORKDIR /usr/src/app
 
+# Enable contrib repo
+RUN sed -i'.bak' 's/$/ contrib/' /etc/apt/sources.list
+
 RUN apt-get -y update
+
+# Install fonts
+RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
+RUN apt-get install -y fontconfig ttf-mscorefonts-installer
+RUN fc-cache -f -v
+
+# Install pdftk
 RUN apt-get -y install pdftk
+
 # Install chrome from repo
-RUN apt-get update && apt-get install -y \
+RUN apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
@@ -16,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get update && apt-get install -y \
     google-chrome-stable \
     --no-install-recommends
+
 # Permissions for chrome
 RUN groupadd chrome && useradd -g chrome -s /bin/bash -G audio,video chrome \
     && mkdir -p /home/chrome && chown -R chrome:chrome /home/chrome
