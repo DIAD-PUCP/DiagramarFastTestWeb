@@ -293,6 +293,13 @@ async def generate(examen):
   await page.close()
   await browser.close()
 
+  #Agregar carátula si se selecciono una
+  if examen['carátula']:
+    ruta_caratula = f"{pwd.name}/CARÁTULA-{examen['versión']}.pdf"
+    with open(ruta_caratula,'wb') as f:
+      f.write(examen['carátula'].getbuffer())
+    rutas = [ruta_caratula] + rutas
+
   ruta_final = merge_pdf(rutas,f"PRUEBA-{examen['versión']}-{examen['código']}.pdf",path=pwd.name)
   
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
@@ -320,6 +327,10 @@ examen = {
     format='%d',
     help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'
   ),
+  'carátula': datos.file_uploader(
+      f'Carátula',
+      help='Adjuntar una carátula si se desea incluir en la versión final'
+    ),
   'resaltar_clave': datos.checkbox(
     'Resaltar clave',
     help='Resalta la clave en amarillo para la revisión'
