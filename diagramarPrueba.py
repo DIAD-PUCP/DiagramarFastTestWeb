@@ -228,7 +228,7 @@ def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
     namesize = 2.5
   else:
     namesize = 2.5 *(1-((numchars-21)/(numchars-1)))
-  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec['nombre'],size=namesize)
+  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec['nombre'],size=namesize,derCuad=sec['derCuad'])
   with open(f'{path}/{sec["nombre"]}-background.html','w') as f:
     f.write(html)
   return num_pages
@@ -370,6 +370,11 @@ for i in range(examen['nsecciones']):
     'blancas': container.text_input(
       f'Páginas en blanco {i+1}',
       help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'
+    ),
+    'derCuad': container.checkbox(
+      'La cara derecha es cuadriculada',
+      help='Si se desea que la cara derecha (abierto como libro) sea cuadriculada',
+      key=f'Quad{i}'
     ),
   }
   sec['saltos'] = [i for i in sec['saltos'].split(',') if sec['saltos']!='']

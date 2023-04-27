@@ -39,6 +39,11 @@
           size: A4 ;
         }
         @page:left {
+          {% if derCuad %}
+          background-image: url("square.svg");
+          background-repeat: repeat;
+          background-position: 1px 2px;
+          {% endif %}
           @top-right-corner {
             content: element(numseccionRunning);
             background-color: grey;
