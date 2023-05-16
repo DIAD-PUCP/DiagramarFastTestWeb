@@ -22,8 +22,7 @@ warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 async def get_browser():
   return await launch({
         'executablePath':'/usr/bin/chromium',
-        'headless':True,
-        'args':['--no-sandbox','--disable-setuid-sandbox']
+        'headless':True
       },handleSIGINT=False,
       handleSIGTERM=False,
       handleSIGHUP=False)
@@ -329,99 +328,10 @@ async def generate(examen):
       z.write(ruta_final,arcname=ruta_final.split('/')[-1])
   return ruta_zip,pwd
 
-# Streamlit - para generar la "estructura" de la prueba
-
-st.title('Diagramar prueba - FastTestWeb')
-
-datos = st.container()
-
-examen = {
-  'versión': datos.text_input(
-    'Versión',
-    help='Es para el nombre de archivo y asignar los temas y subtemas en la estructura (CIENCIAS,LETRAS,ARTE)'
-  ),
-  'código' : datos.number_input(
-    'Código',
-    value=0,
-    format='%d',
-    help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'
-  ),
-  'carátula': datos.file_uploader(
-      f'Carátula',
-      help='Adjuntar una carátula si se desea incluir en la versión final'
-    ),
-  'resaltar_clave': datos.checkbox(
-    'Resaltar clave',
-    help='Resalta la clave en amarillo para la revisión'
-  ),
-  'nsecciones':datos.number_input(
-    'Número de secciones',
-    value=2,
-    format='%d'
-  ),
-  'secciones': []
-}
-extra_styles = datos.checkbox(
-  'Agregar estilos adicionales',
-  help='Marcar si se desea agregar estilos adicionales al contenido de la prueba'
-)
-
-if extra_styles:
-  examen['extra_css'] = datos.text_area(
-    'CSS extra',
-    help = 'Agregar CSS extra al contenido de la prueba'
-  )
-else:
-  examen['extra_css'] = ''
-
-if examen['código'] == 0:
-  examen['código'] = int(time.time())
-
-for i in range(examen['nsecciones']):
-  container = st.container()
-  container.subheader(f'Sección {i+1}')
-  sec = {
-    'archivo': container.file_uploader(
-      f'Archivo {i+1}',
-      help='El archivo de metadata exportado por FastTestWeb'
-    ),
-    'nombre': container.text_input(
-      f'Nombre {i+1}',
-      help='Esta etiqueta sale en la primera página y tambien en los bordes'
-    ),
-    'tiempo': container.text_input(
-      f'Tiempo {i+1}',
-      help='Esta etiqueta sale en la primera página'
-    ),
-    'saltos': container.text_input(
-      f'Saltos de página {i+1}',
-      help='Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7'
-    ),
-    'blancas': container.text_input(
-      f'Páginas en blanco {i+1}',
-      help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'
-    ),
-    'derCuad': container.checkbox(
-      'La cara derecha es cuadriculada',
-      help='Si se desea que la cara derecha (abierto como libro) sea cuadriculada',
-      key=f'Quad{i}'
-    ),
-  }
-  sec['saltos'] = [i for i in sec['saltos'].split(',') if sec['saltos']!='']
-  sec['blancas'] = [int(i) for i in sec['blancas'].split(',') if sec['blancas']!='']
-  examen['secciones'].append(sec)
-
-submit = st.container()
-resultados = st.container()
-resultados.empty()
-
-btn = submit.button('PROCESAR',on_click=lambda:procesar(resultados,examen))
-
 def procesar(resultados,examen):
   with resultados:
     with st.spinner('Generando archivos...'):
       ruta_zip,tmp = asyncio.run(generate(examen))
-      print(tmp.name)
       st.header("Archivos generados")
       with open(ruta_zip,'rb') as file:
         st.download_button(
@@ -430,3 +340,96 @@ def procesar(resultados,examen):
           file_name=ruta_zip.split('/')[-1],
           mime="application/zip"
         )
+
+def main():
+  # Streamlit - para generar la "estructura" de la prueba
+
+  st.title('Diagramar prueba - FastTestWeb')
+
+  datos = st.container()
+
+  examen = {
+    'versión': datos.text_input(
+      'Versión',
+      help='Es para el nombre de archivo y asignar los temas y subtemas en la estructura (CIENCIAS,LETRAS,ARTE)'
+    ),
+    'código' : datos.number_input(
+      'Código',
+      value=0,
+      format='%d',
+      help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'
+    ),
+    'carátula': datos.file_uploader(
+        f'Carátula',
+        help='Adjuntar una carátula si se desea incluir en la versión final'
+      ),
+    'resaltar_clave': datos.checkbox(
+      'Resaltar clave',
+      help='Resalta la clave en amarillo para la revisión'
+    ),
+    'nsecciones':datos.number_input(
+      'Número de secciones',
+      value=2,
+      format='%d'
+    ),
+    'secciones': []
+  }
+  extra_styles = datos.checkbox(
+    'Agregar estilos adicionales',
+    help='Marcar si se desea agregar estilos adicionales al contenido de la prueba'
+  )
+
+  if extra_styles:
+    examen['extra_css'] = datos.text_area(
+      'CSS extra',
+      help = 'Agregar CSS extra al contenido de la prueba'
+    )
+  else:
+    examen['extra_css'] = ''
+
+  if examen['código'] == 0:
+    examen['código'] = int(time.time())
+
+  for i in range(examen['nsecciones']):
+    container = st.container()
+    container.subheader(f'Sección {i+1}')
+    sec = {
+      'archivo': container.file_uploader(
+        f'Archivo {i+1}',
+        help='El archivo de metadata exportado por FastTestWeb'
+      ),
+      'nombre': container.text_input(
+        f'Nombre {i+1}',
+        help='Esta etiqueta sale en la primera página y tambien en los bordes'
+      ),
+      'tiempo': container.text_input(
+        f'Tiempo {i+1}',
+        help='Esta etiqueta sale en la primera página'
+      ),
+      'saltos': container.text_input(
+        f'Saltos de página {i+1}',
+        help='Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7'
+      ),
+      'blancas': container.text_input(
+        f'Páginas en blanco {i+1}',
+        help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'
+      ),
+      'derCuad': container.checkbox(
+        'La cara derecha es cuadriculada',
+        help='Si se desea que la cara derecha (abierto como libro) sea cuadriculada',
+        key=f'Quad{i}'
+      ),
+    }
+    sec['saltos'] = [i for i in sec['saltos'].split(',') if sec['saltos']!='']
+    sec['blancas'] = [int(i) for i in sec['blancas'].split(',') if sec['blancas']!='']
+    examen['secciones'].append(sec)
+
+  submit = st.container()
+  resultados = st.container()
+  resultados.empty()
+
+  btn = submit.button('PROCESAR')
+  if btn:
+    procesar(resultados,examen)
+
+main()
