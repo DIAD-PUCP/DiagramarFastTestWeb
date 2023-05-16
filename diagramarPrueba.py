@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 async def get_browser():
   return await launch({
-        'executablePath':'/usr/bin/google-chrome-stable',
+        'executablePath':'/usr/bin/chromium',
         'headless':True,
         'args':['--no-sandbox','--disable-setuid-sandbox']
       },handleSIGINT=False,
