@@ -239,10 +239,10 @@ def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
   reader = PdfReader(f"{path}/{sec['nombre']}.pdf")
   num_pages = len(reader.pages)
   numchars = len(sec['nombre'])
-  if numchars < 22:
+  if numchars < 20:
     namesize = 2.5
   else:
-    namesize = 2.5 *(1-((numchars-21)/(numchars-1)))
+    namesize = 2.5 *(1-((numchars-19)/(numchars-1)))
   html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec['nombre'],size=namesize,derCuad=sec['derCuad'])
   with open(f'{path}/{sec["nombre"]}-background.html','w') as f:
     f.write(html)
