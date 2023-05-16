@@ -303,7 +303,9 @@ async def generate(examen):
   ruta_final = merge_pdf(rutas,f"PRUEBA-{examen['versión']}-{examen['código']}.pdf",path=pwd.name)
   
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
-  
+  #debug
+  #rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
+  #
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
     for ruta_final in rutas:
@@ -337,7 +339,7 @@ examen = {
   ),
   'nsecciones':datos.number_input(
     'Número de secciones',
-    value=3,
+    value=2,
     format='%d'
   ),
   'secciones': []
