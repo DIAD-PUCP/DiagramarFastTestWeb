@@ -4,7 +4,6 @@
 import os
 import re
 import time
-import subprocess
 import tempfile
 import shutil
 import asyncio
@@ -17,7 +16,7 @@ from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from pyppeteer import launch
 from numpy.random import default_rng
-from PyPDF2 import PdfReader
+from PyPDF2 import PdfReader, PdfWriter, PdfMerger 
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 async def get_browser():
@@ -45,8 +44,25 @@ async def html2pdf(file,sleep_time=0,page=None,browser=None,path=os.getcwd()):
 
 def merge_pdf(files,fname,path=os.getcwd()):
   outname = f"{path}/{fname}"
-  total = ' '.join([f"\"{file}\"" for file in files])
-  subprocess.call(f"pdftk {total} cat output \"{outname}\"",shell=True)
+  merger = PdfMerger()
+  for pdf in files:
+    reader = PdfReader(pdf)
+    merger.append(reader)
+  merger.write(outname)
+  return outname
+
+def stamp_pdf(content,stamp,fname,path=os.getcwd()):
+  outname = f"{path}/{fname}"
+  stamp_reader = PdfReader(stamp)
+  content_reader = PdfReader(content)
+  writer = PdfWriter()
+  for c,s in zip(stamp_reader.pages,content_reader.pages):
+    new_page = c
+    mediabox = c.mediabox
+    new_page.merge_page(s)
+    new_page.mediabox = mediabox
+    writer.add_page(new_page)
+  writer.write(outname)
   return outname
 
 def load_files(examen):
@@ -246,10 +262,11 @@ async def generate_backgrounds(examen,tpl,start_page=2,page=None,browser=None,pa
 def generate_sec_pdfs(examen,path=os.getcwd()):
   secciones = []
   for i,sec in enumerate(examen['secciones']):
-    outname = f"{path}/{sec['nombre']}-{examen['versión']}-{examen['código']}.pdf"
-    subprocess.call(
-      f"pdftk \"{path}/{sec['nombre']}.pdf\" multibackground \"{path}/{sec['nombre']}-background.pdf\" output \"{outname}\"",
-      shell=True
+    outname = stamp_pdf(
+      content = f"{path}/{sec['nombre']}.pdf",
+      stamp = f"{path}/{sec['nombre']}-background.pdf",
+      fname = f"{sec['nombre']}-{examen['versión']}-{examen['código']}.pdf",
+      path = path
     )
     secciones.append(outname)
   return secciones
@@ -304,7 +321,7 @@ async def generate(examen):
   
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
   #debug
-  #rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
+  rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
   #
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
