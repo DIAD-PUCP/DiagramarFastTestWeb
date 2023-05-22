@@ -86,7 +86,10 @@ ol.items{
   break-after: page;
 }
 
-.page-blanca + .li-item .item {
+.page-blanca + .li-item .item,
+.page-blanca + .item.padre,
+.page-break + .li-item .item,
+.page-break + .item.padre {
   margin-top: -1em;
 }
 
