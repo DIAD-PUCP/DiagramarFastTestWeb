@@ -1,5 +1,5 @@
 {% if padre %}
-<div class="item padre">
+<div class="item padre texto-{{ num_texto }}">
   <div class="description">
   <h3>TEXTO {{ num_texto }}</h3>
   {{ description | safe }}
@@ -7,7 +7,7 @@
 </div>
 {% else %}
 <li class="li-item">
-  <div class="item">
+  <div class="item item-{{ num_item }}">
     <div class="description {% if ocultar_alternativas == True %}noalt{% endif %}">
     {{ description | safe }}
     </div>

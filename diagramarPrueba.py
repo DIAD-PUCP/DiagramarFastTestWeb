@@ -205,6 +205,7 @@ def render_item(item_tpl,item,examen):
     answer2 = item[f'Answer {item["orden"][1]}'],
     answer3 = item[f'Answer {item["orden"][2]}'],
     answer4 = item[f'Answer {item["orden"][3]}'],
+    num_item = item['Ord'],
     padre = item['EsPadre'],
     num_texto = item['numtext'],
     salto = item['Salto'],
@@ -215,10 +216,10 @@ def render_item(item_tpl,item,examen):
     ocultar_alternativas = item['Alternativas en enunciado'],
   )
 
-def generate_sec_html(df,sec,tpl,start=1,last=False,extra_css='',path=os.getcwd()):
+def generate_sec_html(df,i,sec,tpl,start=1,last=False,extra_css='',path=os.getcwd()):
   body = '\n'.join(df['html'])
   end = start + df[df['EsPadre']==False].shape[0] -1
-  prueba = tpl.render(nombre=sec['nombre'],items=body,start=start,end = end, tiempo = sec['tiempo'],last=last,extra_css=extra_css)
+  prueba = tpl.render(nombre=sec['nombre'],num_seccion=i+1,items=body,start=start,end = end, tiempo = sec['tiempo'],last=last,extra_css=extra_css)
   with open(f"{path}/{sec['nombre']}.html",'w') as f:
       f.write(prueba)
 
@@ -232,7 +233,7 @@ async def generate_content(examen,df,tpl,page=None,browser=None,path=os.getcwd()
   for i,sec in enumerate(examen['secciones']):
     d = df.loc[df['Sec']==sec['nombre'],:]
     last = (i == (len(examen['secciones'])-1))
-    generate_sec_html(d,sec,tpl,start,last,examen['extra_css'],path)
+    generate_sec_html(d,i,sec,tpl,start,last,examen['extra_css'],path)
     start = start + d[d['EsPadre']==False].shape[0]
     await html2pdf(f"{sec['nombre']}.html",sleep_time=2,page=page,path=path)
 
