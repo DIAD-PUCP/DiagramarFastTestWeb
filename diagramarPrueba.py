@@ -108,7 +108,7 @@ def load_files(examen):
   # generar el orden de las alternativas
   rng = default_rng(examen['código'])
   op = np.arange(1,5)
-  df['orden'] = df.apply(lambda x: rng.permutation(op) if x['Alternativas en enunciado']!=True else op,axis=1)
+  df['orden'] = df.apply(lambda x: rng.permutation(op) if (x['Alternativas en enunciado']!=True) and (x['EsPadre']!=True) else op,axis=1)
   # calcular la nueva "clave"
   df['clave'] = df['orden'].apply(lambda x: np.nonzero(x ==1)[0][0] +1)
   #st.write(df)
@@ -434,4 +434,5 @@ def main():
   if btn:
     procesar(resultados,examen)
 
-main()
+if __name__ == "__main__":
+  main()
