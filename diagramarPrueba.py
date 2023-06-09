@@ -129,14 +129,19 @@ def generate_anskey(examen,df,path=os.getcwd()):
 
 def generate_estructura(examen,df,path=os.getcwd()):
   items = df[~df['EsPadre']]
-  comp = pd.read_excel('Temas.xlsx',sheet_name='Competencia',dtype=str).set_index('Bank')
-  temas_com = pd.read_excel('Temas.xlsx',sheet_name='Comunicación',dtype=str).set_index('Category Path')
-  # Con el cambio a los nuevos temas esto no será necesario
-  if examen['versión'] == 'CIENCIAS':
-    temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Ciencias',dtype=str).set_index('Category Path')
+  if examen['temas_nuevos']:
+    comp = pd.read_excel('Temas_nuevos.xlsx',sheet_name='Competencia',dtype=str).set_index('Bank')
+    temas = pd.read_excel('Temas_nuevos.xlsx',sheet_name='Equivalencia',dtype=str).set_index('RUTA FASTTEST')
+    temas = temas.rename(columns={'CODTEMA':'Tema','CODSUBTEMA':'SubTema'})
   else:
-    temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Letras',dtype=str).set_index('Category Path')
-  temas = pd.concat([temas_com,temas_mat])
+    comp = pd.read_excel('Temas.xlsx',sheet_name='Competencia',dtype=str).set_index('Bank')
+    temas_com = pd.read_excel('Temas.xlsx',sheet_name='Comunicación',dtype=str).set_index('Category Path')
+    # Con el cambio a los nuevos temas esto no será necesario
+    if examen['versión'] == 'CIENCIAS':
+      temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Ciencias',dtype=str).set_index('Category Path')
+    else:
+      temas_mat = pd.read_excel('Temas.xlsx',sheet_name='Matemática Letras',dtype=str).set_index('Category Path')
+    temas = pd.concat([temas_com,temas_mat])
   ruta = f"{path}/ESTRUCTURA-{examen['versión']}-{examen['código']}.xlsx"
   est = items
   est = est.join(comp,on='Bank')
@@ -360,6 +365,10 @@ def main():
       value=0,
       format='%d',
       help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'
+    ),
+    'temas_nuevos': datos.checkbox(
+      'Usar temas nuevos',
+      help='Usar los temas nuevos al generar la estructura'
     ),
     'carátula': datos.file_uploader(
         f'Carátula',
