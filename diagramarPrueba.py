@@ -143,9 +143,9 @@ def generate_estructura(examen,df,path=os.getcwd()):
   est['Categoría'] = '02'
   est['Error'] = ''
   est = est.join(temas,on='Category Path')
-  est = est[['Item Name','Competencia','Tema','SubTema','Categoría','Stat 3','IRT b','Error']]
   est['Posición'] = np.arange(est.shape[0])+1
-  est.columns=['CodPregunta OCA','Competencia','Tema','SubTema','Categoria','N','Medición','Error','Posición\npregunta']
+  est = est[['Item Name','Competencia','Tema','SubTema','Categoría','Stat 3','IRT b','Error','Posición','orden']]
+  est.columns=['CodPregunta OCA','Competencia','Tema','SubTema','Categoria','N','Medición','Error','Posición\npregunta','Orden Alternativas']
   est.to_excel(ruta,index=False)
   return ruta
 
@@ -322,7 +322,7 @@ async def generate(examen):
   
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
   #debug
-  rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
+  # rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
   #
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
