@@ -40,9 +40,14 @@
         }
         @page:left {
           {% if derCuad %}
+          {% if derCuadNew %}
+          background-image: url("grid.svg");
+          background-size: cover;
+          {% else %}
           background-image: url("square.svg");
           background-repeat: repeat;
           background-position: 1px 2px;
+          {% endif %}
           {% endif %}
           @top-right-corner {
             content: element(numseccionRunning);
