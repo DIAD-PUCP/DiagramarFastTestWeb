@@ -72,7 +72,6 @@ def load_files(examen):
     d = d.set_index('Unique Id')
     d['Pos'] = d['Pos'] + 1
     d['Sec'] = sec['nombre']
-    d['Ord'] = i + 1
     d['EsPadre'] = d['Total Points'] == 0.0
     d['Salto'] = False
     d['Continue'] = False
@@ -80,10 +79,8 @@ def load_files(examen):
     d['Ultimo'] = False
     
     # Renumerar la prueba sin contar a los padres
-    d = d.join(d.loc[d['EsPadre']==False,'Pos'].rank().rename('Ord_y'))
-    d['Ord_y'] = d['Ord_y'].fillna(0).astype(int)
-    d['Ord'] = d['Ord_y']
-    d = d.drop(columns='Ord_y')
+    d = d.join(d.loc[d['EsPadre']==False,'Pos'].rank().rename('Ord'))
+    d['Ord'] = d['Ord'].fillna(0).astype(int)
     
     for s in sec['saltos']:
       if s[-1] == '*':
@@ -111,7 +108,7 @@ def load_files(examen):
   df['orden'] = df.apply(lambda x: rng.permutation(op) if (x['Alternativas en enunciado']!=True) and (x['EsPadre']!=True) else op,axis=1)
   # calcular la nueva "clave"
   df['clave'] = df['orden'].apply(lambda x: np.nonzero(x ==1)[0][0] +1)
-  #st.write(df)
+  print(df[['Item Name','Pos','Sec','Ord','EsPadre','Salto','Continue','Blanca','Ultimo','numtext','orden','clave']].to_markdown())
   return df
 
 def generate_anskey(examen,df,path=os.getcwd()):
