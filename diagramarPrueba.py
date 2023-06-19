@@ -108,7 +108,6 @@ def load_files(examen):
   df['orden'] = df.apply(lambda x: rng.permutation(op) if (x['Alternativas en enunciado']!=True) and (x['EsPadre']!=True) else op,axis=1)
   # calcular la nueva "clave"
   df['clave'] = df['orden'].apply(lambda x: np.nonzero(x ==1)[0][0] +1)
-  print(df[['Item Name','Pos','Sec','Ord','EsPadre','Salto','Continue','Blanca','Ultimo','numtext','orden','clave']].to_markdown())
   return df
 
 def generate_anskey(examen,df,path=os.getcwd()):
