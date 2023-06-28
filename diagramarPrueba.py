@@ -246,7 +246,7 @@ def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
     namesize = 2.5
   else:
     namesize = 2.5 *(1-((numchars-19)/(numchars-1)))
-  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec['nombre'],size=namesize,derCuad=sec['derCuad'],derCuadNew=sec['derCuadNew'])
+  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec['nombre'],size=namesize,derCuad=sec['derCuad'])
   with open(f'{path}/{sec["nombre"]}-background.html','w') as f:
     f.write(html)
   return num_pages
@@ -323,7 +323,7 @@ async def generate(examen):
   
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
   #debug
-  # rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
+  rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
   #
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
@@ -425,11 +425,6 @@ def main():
         'La cara derecha es cuadriculada',
         help='Si se desea que la cara derecha (abierto como libro) sea cuadriculada',
         key=f'Quad{i}'
-      ),
-      'derCuadNew': container.checkbox(
-        'La cuadricula es tenue',
-        help='La cuadricula tiene una opacidad de 0.25, se ignora si no se marca el check previo',
-        key=f'QuadNew{i}'
       ),
     }
     sec['saltos'] = [i for i in sec['saltos'].split(',') if sec['saltos']!='']
