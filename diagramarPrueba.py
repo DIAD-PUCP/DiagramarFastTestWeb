@@ -65,6 +65,15 @@ def stamp_pdf(content,stamp,fname,path=os.getcwd()):
   writer.write(outname)
   return outname
 
+def encrypt_pdf(fname,password):
+  reader = PdfReader(fname)
+  writer = PdfWriter()
+  for page in reader.pages:
+    writer.add_page(page)
+  writer.encrypt(password)
+  with open(fname,"wb") as f:
+    writer.write(f)
+
 def load_files(examen):
   l = []
   for i,sec in enumerate(examen['secciones']):
@@ -311,9 +320,13 @@ async def generate(examen):
 
   ruta_final = merge_pdf(rutas,f"PRUEBA-{examen['versión']}-{examen['código']}.pdf",path=pwd.name)
   
+  if 'password' in examen:
+    for archivo in rutas + [ruta_final]:
+      encrypt_pdf(archivo,examen['password'])
+  
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
   #debug
-  rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
+  #rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
   #
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
@@ -379,6 +392,18 @@ def main():
     )
   else:
     examen['extra_css'] = ''
+
+  usar_password = datos.checkbox(
+    'Agregar un password a los PDFs',
+    help='Marcar si se desea agregar una contraseña a todos los archivos PDF'
+  )
+
+  if usar_password:
+    examen['password'] = datos.text_input(
+      'Password',
+      help='Password para los PDFs',
+      type='password'
+    )
 
   if examen['código'] == 0:
     examen['código'] = int(time.time())
