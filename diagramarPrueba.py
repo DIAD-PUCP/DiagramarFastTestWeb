@@ -235,7 +235,7 @@ async def generate_content(examen,df,tpl,page=None,browser=None,path=os.getcwd()
     last = (i == (len(examen['secciones'])-1))
     generate_sec_html(d,i,sec,tpl,start,last,examen['extra_css'],path)
     start = start + d[d['EsPadre']==False].shape[0]
-    await html2pdf(f"{sec['nombre']}.html",sleep_time=2,page=page,path=path)
+    await html2pdf(f"{sec['nombre']}.html",sleep_time=3,page=page,path=path)
 
 def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
   reader = PdfReader(f"{path}/{sec['nombre']}.pdf")
@@ -326,7 +326,7 @@ async def generate(examen):
   
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
   #debug
-  #rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
+  rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
   #
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
