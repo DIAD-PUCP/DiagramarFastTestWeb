@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link type="text/css" rel="stylesheet" href="styles.css">
     <style>
-      {{ extra_css | safe }}
+      mjx-container[jax="CHTML"][display="true"].MathJax{
+        display: inline;
+      }
     </style>
+    {{ extra_css | safe }}
   </head>
   <body>
     <div class="content seccion-{{ num_seccion }}">
@@ -29,19 +32,6 @@
         <h4>(Puede revisar solo las preguntas correspondientes a {{ nombre }})</h4>
       </div>
     </div>
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <script type="text/x-mathjax-config">
-      MathJax.Hub.Config({
-        "HTML-CSS":{
-          styles: {
-            ".MathJax_Display": {
-              "text-align": "center",
-              margin:       "1em 0em",
-              display: "inline"
-            },
-          }
-        }
-      });
-    </script>
+    <script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/mml-chtml.min.js"></script>
   </body>
 </html>
