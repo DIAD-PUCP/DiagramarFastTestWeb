@@ -38,8 +38,8 @@ async def html2pdf(file,sleep_time=0,page=None,browser=None,path=os.getcwd()):
       browser = await get_browser()
     page = await browser.newPage()
   
-  await page.goto(f"file://{path}/{fname}.html",waitUntil='networkidle2')
-  time.sleep(sleep_time)
+  await page.goto(f"file://{path}/{fname}.html",waitUntil='networkidle0')
+  await asyncio.sleep(sleep_time)
   await page.pdf({'path':f"{path}/{fname}.pdf",'printBackground':True, 'format':'A4'})
 
 def merge_pdf(files,fname,path=os.getcwd()):
@@ -235,7 +235,7 @@ async def generate_content(examen,df,tpl,page=None,browser=None,path=os.getcwd()
     last = (i == (len(examen['secciones'])-1))
     generate_sec_html(d,i,sec,tpl,start,last,examen['extra_css'],path)
     start = start + d[d['EsPadre']==False].shape[0]
-    await html2pdf(f"{sec['nombre']}.html",sleep_time=3,page=page,path=path)
+    await html2pdf(f"{sec['nombre']}.html",sleep_time=0,page=page,path=path)
 
 def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
   reader = PdfReader(f"{path}/{sec['nombre']}.pdf")
