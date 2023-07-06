@@ -11,7 +11,6 @@
     <div class="description {% if ocultar_alternativas == True %}noalt{% endif %}">
     {{ description | safe }}
     </div>
-    {% if ocultar_alternativas != True %}
     <div class="choice-list">
       <ol type="A">
         <li class="choice {% if resaltar_clave and (clave == 1)%}resaltar{% endif %}">{{ answer1 | safe }}</li>
@@ -20,7 +19,6 @@
         <li class="choice {% if resaltar_clave and (clave == 4)%}resaltar{% endif %}">{{ answer4 | safe }}</li>
       </ol>
     </div>
-    {% endif %}
   </div>
 </li>
 {% endif %}

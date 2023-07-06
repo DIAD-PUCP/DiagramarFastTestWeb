@@ -124,7 +124,6 @@ def generate_anskey(examen,df,path=os.getcwd()):
   claves = items['clave'].apply(
     lambda x: chr(64+x)
   )
-  claves = np.where(items['Alternativas en enunciado']==True,items['Answer 1'].str[3:-4],claves)
   name = f"{path}/CLAVE-{examen['versión']}-{examen['código']}.xlsx"
   pd.DataFrame(claves,columns=[examen['versión']]).to_excel(
     name,
@@ -213,7 +212,6 @@ def render_item(item_tpl,item,examen):
     blanca = item['Blanca'],
     resaltar_clave = examen['resaltar_clave'],
     clave = item['clave'],
-    ocultar_alternativas = item['Alternativas en enunciado'],
   )
 
 def generate_sec_html(df,i,sec,tpl,start=1,last=False,extra_css='',path=os.getcwd()):
