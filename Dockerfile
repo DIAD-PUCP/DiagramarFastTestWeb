@@ -17,6 +17,7 @@ RUN  apt-get install -y chromium --no-install-recommends
 
 # Install python packages
 COPY requirements.txt ./
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
