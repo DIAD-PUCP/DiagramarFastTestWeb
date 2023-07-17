@@ -145,7 +145,7 @@ def generate_estructura(examen,df,path=os.getcwd()):
   est['Posición'] = np.arange(est.shape[0])+1
   est = est[['Item Name','Competencia','Tema','SubTema','Categoría','Stat 3','IRT b','Error','Posición','orden']]
   est.columns=['CodPregunta OCA','Competencia','Tema','SubTema','Categoria','N','Medición','Error','Posición\npregunta','Orden Alternativas']
-  est.to_excel(ruta,index=False)
+  est.to_excel(ruta)
   return ruta
 
 def replace_equations(markup):
@@ -296,6 +296,7 @@ async def generate(examen):
 
   # Objetos para convertir un html a pdf usando chromium
   browser = await get_browser()
+  print(await browser.version())
   page = await browser.newPage()
 
   prueba_tpl = jinja_env.get_template('test.tpl.html')
