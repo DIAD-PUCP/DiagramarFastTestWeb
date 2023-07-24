@@ -125,7 +125,7 @@ def generate_anskey(examen,df,path=os.getcwd()):
     lambda x: chr(64+x)
   )
   name = f"{path}/CLAVE-{examen['versión']}-{examen['código']}.xlsx"
-  pd.DataFrame(claves,columns=[examen['versión']]).to_excel(
+  claves.rename(examen['versión']).to_excel(
     name,
     index=False
   )
@@ -325,7 +325,7 @@ async def generate(examen):
   
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
   #debug
-  rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
+  # rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
   #
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
