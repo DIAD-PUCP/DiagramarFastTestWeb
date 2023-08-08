@@ -4,7 +4,6 @@
 import os
 import re
 import time
-import yaml
 import json
 import tempfile
 import shutil
