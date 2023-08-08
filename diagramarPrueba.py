@@ -4,6 +4,8 @@
 import os
 import re
 import time
+import yaml
+import json
 import tempfile
 import shutil
 import asyncio
@@ -270,6 +272,13 @@ def generate_sec_pdfs(examen,path=os.getcwd()):
     secciones.append(outname)
   return secciones
 
+def generar_configuracion(examen,path=os.getcwd()):
+  config = json.dumps(examen,default=lambda x: x.name,ensure_ascii=False,indent=2)
+  outname = f"{path}/config.json"
+  with open(outname,'w') as f:
+    f.write(config)
+  return outname
+
 async def generate(examen):
   jinja_env = jinja2.Environment(
     #donde están los templates, por defecto es la carpeta actual
@@ -323,7 +332,9 @@ async def generate(examen):
     for archivo in rutas + [ruta_final]:
       encrypt_pdf(archivo,examen['password'])
   
-  rutas = rutas + [ruta_final,ruta_clave,ruta_estructura]
+  ruta_config = generar_configuracion(examen,path=pwd.name)
+
+  rutas = rutas + [ruta_final,ruta_clave,ruta_estructura,ruta_config]
   #debug
   # rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
   #
