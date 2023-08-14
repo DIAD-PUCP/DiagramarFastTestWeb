@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import jinja2
+from copy import deepcopy
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from pyppeteer import launch
@@ -272,7 +273,12 @@ def generate_sec_pdfs(examen,path=os.getcwd()):
   return secciones
 
 def generar_configuracion(examen,path=os.getcwd()):
-  config = json.dumps(examen,default=lambda x: x.name,ensure_ascii=False,indent=2)
+  ex = deepcopy(examen)
+  for sec in ex['secciones']:
+    sec['blancas'] = ','.join(str(i) for i in sec['blancas']) if sec['blancas'] else ""
+    sec['saltos'] = ','.join(sec['saltos']) if sec['saltos'] else ""
+    sec['archivo'] = sec['archivo'].name
+  config = json.dumps(ex,default=lambda x: x.name,ensure_ascii=False,indent=2)
   outname = f"{path}/config.json"
   with open(outname,'w') as f:
     f.write(config)
