@@ -1,0 +1,20 @@
+versión: ''
+código: 0
+carátula: null
+resaltar_clave: false
+nsecciones: 2
+secciones:
+  Sección 1:
+    archivo: null
+    tiempo: ''
+    saltos: ''
+    blancas: ''
+    derCuad: false
+  Sección 2:
+    archivo: null
+    tiempo: ''
+    saltos: ''
+    blancas: ''
+    derCuad: false
+extra_css: ''
+password: ''

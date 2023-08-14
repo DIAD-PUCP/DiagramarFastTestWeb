@@ -382,21 +382,36 @@ def procesar(resultados,examen):
           mime="application/zip"
         )
 
+def load_yaml(path):
+  with open(path,'r') as f:
+    yml = yaml.safe_load(f)
+  secciones = []
+  yml['carátula'] = None
+  for name,sec in yml['secciones'].items():
+    sec['nombre'] = name
+    sec['archivo'] = None
+    secciones.append(sec)
+  yml['secciones'] = secciones
+  return yml
+
 def main():
   # Streamlit - para generar la "estructura" de la prueba
 
   st.title('Diagramar prueba - FastTestWeb')
+
+  defaults = load_yaml('defaults.yml')
 
   datos = st.container()
 
   examen = {
     'versión': datos.text_input(
       'Versión',
+      value=defaults['versión'],
       help='Es para el nombre de archivo y asignar los temas y subtemas en la estructura (CIENCIAS,LETRAS,ARTE)'
     ),
     'código' : datos.number_input(
       'Código',
-      value=0,
+      value=defaults['código'],
       format='%d',
       help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'
     ),
@@ -406,23 +421,26 @@ def main():
       ),
     'resaltar_clave': datos.checkbox(
       'Resaltar clave',
+      value=defaults['resaltar_clave'],
       help='Resalta la clave en amarillo para la revisión'
     ),
     'nsecciones':datos.number_input(
       'Número de secciones',
-      value=2,
+      value=defaults['nsecciones'],
       format='%d'
     ),
     'secciones': []
   }
   extra_styles = datos.checkbox(
     'Agregar estilos adicionales',
+    value= True if defaults['extra_css'] != '' else False,
     help='Marcar si se desea agregar estilos adicionales al contenido de la prueba'
   )
 
   if extra_styles:
     examen['extra_css'] = datos.text_area(
       'CSS extra',
+      value=defaults['extra_css'],
       help = 'Agregar CSS extra al contenido de la prueba'
     )
   else:
@@ -430,15 +448,19 @@ def main():
 
   usar_password = datos.checkbox(
     'Agregar un password a los PDFs',
+    value=True if defaults['password'] != '' else False,
     help='Marcar si se desea agregar una contraseña a todos los archivos PDF'
   )
 
   if usar_password:
     examen['password'] = datos.text_input(
       'Password',
+      value=defaults['password'],
       help='Password para los PDFs',
       type='password'
     )
+  else:
+    examen['password'] = ''
 
   if examen['código'] == 0:
     examen['código'] = int(time.time())
@@ -453,22 +475,27 @@ def main():
       ),
       'nombre': container.text_input(
         f'Nombre {i+1}',
-        help='Esta etiqueta sale en la primera página de la sección y tambien en los bordes'
+        help='Esta etiqueta sale en la primera página de la sección y tambien en los bordes',
+        value=defaults['secciones'][i]['nombre'] if i < defaults['nsecciones'] else f'Sección {i+1}',
       ),
       'tiempo': container.text_input(
         f'Tiempo {i+1}',
+        value=defaults['secciones'][i]['tiempo'] if i < defaults['nsecciones'] else '',
         help='Esta etiqueta sale en la primera página'
       ),
       'saltos': container.text_input(
         f'Saltos de página {i+1}',
+        value=defaults['secciones'][i]['saltos'] if i < defaults['nsecciones'] else '',
         help='Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7'
       ),
       'blancas': container.text_input(
         f'Páginas en blanco {i+1}',
+        value=defaults['secciones'][i]['blancas'] if i < defaults['nsecciones'] else '',
         help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'
       ),
       'derCuad': container.checkbox(
         'La cara derecha es cuadriculada',
+        value=defaults['secciones'][i]['derCuad'] if i < defaults['nsecciones'] else False,
         help='Si se desea que la cara derecha (abierto como libro) sea cuadriculada',
         key=f'Quad{i}'
       ),
