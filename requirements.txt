@@ -37,6 +37,7 @@ pyppeteer==1.0.2
 python-dateutil==2.8.2
 pytz==2023.3
 pytz-deprecation-shim==0.1.0.post0
+PyYAML==6.0.1
 referencing==0.30.2
 requests==2.31.0
 rich==13.5.2
