@@ -302,7 +302,7 @@ def generar_configuracion_yaml(examen,path=os.getcwd()):
     f.write(config)
   return outname
 
-async def generate(examen):
+async def generate(examen,include_html=False):
   jinja_env = jinja2.Environment(
     #donde están los templates, por defecto es la carpeta actual
     loader = jinja2.FileSystemLoader('templates'),autoescape= True
@@ -360,19 +360,20 @@ async def generate(examen):
   ruta_yaml = generar_configuracion_yaml(examen,path=pwd.name)
 
   rutas = rutas + [ruta_final,ruta_clave,ruta_estructura,ruta_config,ruta_yaml]
-  #debug
-  # rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
-  #
+  
+  if include_html:
+    rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
+
   ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
   with ZipFile(ruta_zip,'w') as z:
     for ruta_final in rutas:
       z.write(ruta_final,arcname=ruta_final.split('/')[-1])
   return ruta_zip,pwd
 
-def procesar(resultados,examen):
+def procesar(resultados,examen,include_html):
   with resultados:
     with st.spinner('Generando archivos...'):
-      ruta_zip,tmp = asyncio.run(generate(examen))
+      ruta_zip,tmp = asyncio.run(generate(examen,include_html))
       st.header("Archivos generados")
       with open(ruta_zip,'rb') as file:
         st.download_button(
@@ -411,6 +412,11 @@ def main():
     estFile = st.file_uploader(
       f'Archivo de configuración',
       help='El archivo de configuración'
+    )
+    include_html = st.checkbox(
+      'Incluir los Html generados en el comprimido',
+      value=False,
+      help='Los archivos HTML sirven para depurar errores'
     )
 
   defaults = load_yaml(estFile)
@@ -524,7 +530,7 @@ def main():
 
   btn = submit.button('PROCESAR')
   if btn:
-    procesar(resultados,examen)
+    procesar(resultados,examen,include_html)
 
 if __name__ == "__main__":
   main()
