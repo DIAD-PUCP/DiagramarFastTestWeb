@@ -4,7 +4,6 @@
 import os
 import re
 import time
-import json
 import yaml
 import tempfile
 import shutil
@@ -273,18 +272,6 @@ def generate_sec_pdfs(examen,path=os.getcwd()):
     secciones.append(outname)
   return secciones
 
-def generar_configuracion_json(examen,path=os.getcwd()):
-  ex = deepcopy(examen)
-  for sec in ex['secciones']:
-    sec['blancas'] = ','.join(str(i) for i in sec['blancas']) if sec['blancas'] else ''
-    sec['saltos'] = ','.join(sec['saltos']) if sec['saltos'] else ""
-    sec['archivo'] = sec['archivo'].name
-  config = json.dumps(ex,default=lambda x: x.name,ensure_ascii=False,indent=2)
-  outname = f"{path}/config.json"
-  with open(outname,'w') as f:
-    f.write(config)
-  return outname
-
 def generar_configuracion_yaml(examen,path=os.getcwd()):
   ex = deepcopy(examen)
   ex['carátula'] = ex['carátula'].name if ex['carátula'] else None
@@ -354,12 +341,10 @@ async def generate(examen,include_html=False):
   if ('password' in examen) and (examen['password']!=''):
     for archivo in rutas + [ruta_final]:
       encrypt_pdf(archivo,examen['password'])
-  
-  ruta_config = generar_configuracion_json(examen,path=pwd.name)
 
   ruta_yaml = generar_configuracion_yaml(examen,path=pwd.name)
 
-  rutas = rutas + [ruta_final,ruta_clave,ruta_estructura,ruta_config,ruta_yaml]
+  rutas = rutas + [ruta_final,ruta_clave,ruta_estructura,ruta_yaml]
   
   if include_html:
     rutas = rutas + [f"{pwd.name}/{r}" for r in os.listdir(pwd.name) if r.endswith('.html')]
