@@ -404,6 +404,7 @@ def load_yaml(obj):
 def main():
   # Streamlit - para generar la "estructura" de la prueba
 
+  st.set_page_config(initial_sidebar_state='collapsed')
   st.title('Diagramar prueba - FastTestWeb')
 
   with st.sidebar:
