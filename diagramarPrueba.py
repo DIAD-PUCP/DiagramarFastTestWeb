@@ -351,7 +351,7 @@ async def generate(examen):
 
   ruta_final = merge_pdf(rutas,f"PRUEBA-{examen['versión']}-{examen['código']}.pdf",path=pwd.name)
   
-  if 'password' in examen:
+  if ('password' in examen) and (examen['password']!=''):
     for archivo in rutas + [ruta_final]:
       encrypt_pdf(archivo,examen['password'])
   
@@ -382,16 +382,23 @@ def procesar(resultados,examen):
           mime="application/zip"
         )
 
-def load_yaml(path):
-  with open(path,'r') as f:
-    yml = yaml.safe_load(f)
+def load_yaml(obj):
+  if obj == None:
+    with open('defaults.yml','r') as f:
+      yml = yaml.safe_load(f)
+  else:
+    yml = yaml.safe_load(obj)
   secciones = []
   yml['carátula'] = None
   for name,sec in yml['secciones'].items():
     sec['nombre'] = name
     sec['archivo'] = None
+    sec['saltos'] = '' if sec['saltos'] is None else sec['saltos']
+    sec['blancas'] = '' if sec['blancas'] is None else sec['blancas']
     secciones.append(sec)
   yml['secciones'] = secciones
+  if 'password' not in yml:
+    yml['password'] = ''
   return yml
 
 def main():
@@ -399,7 +406,13 @@ def main():
 
   st.title('Diagramar prueba - FastTestWeb')
 
-  defaults = load_yaml('defaults.yml')
+  with st.sidebar:
+    estFile = st.file_uploader(
+      f'Archivo de configuración',
+      help='El archivo de configuración'
+    )
+
+  defaults = load_yaml(estFile)
 
   datos = st.container()
 
