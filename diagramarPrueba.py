@@ -165,7 +165,7 @@ def replace_equations(markup):
   for m in matches:
     result = result.replace(m,'')
   result = result.replace('<semantics>','').replace('</semantics>','')
-  result = result.replace('\xa0',' ').replace(r'<p> </p>',' ')
+  result = result.replace('\xa0',' ').replace(r'<p> </p>',' ').replace(r'<p style="text-align: justify;"> </p>',' ')
   return result
 
 def fix_images(markup):
