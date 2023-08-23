@@ -174,7 +174,8 @@ def fix_images(markup):
   soup = BeautifulSoup(markup, 'html5lib')
   imgs = soup.find_all('img')
   for img in imgs:
-    img['src'] = 'https://app.fasttestweb.com' + img['src']
+    if img['src'].startswith('/ftw/PR?'):
+      img['src'] = 'https://app.fasttestweb.com' + img['src']
   return str(soup.body)[6:-7]
 
 def process_items(df):
