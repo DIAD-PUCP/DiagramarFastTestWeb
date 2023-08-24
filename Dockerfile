@@ -1,9 +1,9 @@
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 WORKDIR /usr/src/app
 
 # Enable contrib repo
-RUN sed -i'.bak' 's/$/ contrib/' /etc/apt/sources.list
+RUN sed -i'.bak' '/^Components:/s/$/ contrib/' /etc/apt/sources.list.d/debian.sources
 
 RUN apt-get -y update
 
