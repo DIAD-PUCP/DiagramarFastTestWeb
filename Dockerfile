@@ -9,7 +9,7 @@ RUN apt-get -y update
 
 # Install fonts
 RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
-RUN apt-get install -y fontconfig ttf-mscorefonts-installer --no-install-recommends
+RUN apt-get install -y dumb-init fontconfig ttf-mscorefonts-installer --no-install-recommends
 RUN fc-cache -f -v
 
 # Install chrome-driver from repo
@@ -21,5 +21,7 @@ RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
 CMD [ "streamlit","run", "./diagramarPrueba.py" ]
