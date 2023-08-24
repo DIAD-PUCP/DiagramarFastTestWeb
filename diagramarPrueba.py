@@ -5,9 +5,9 @@ import os
 import re
 import time
 import yaml
+import base64
 import tempfile
 import shutil
-import asyncio
 import warnings
 import pandas as pd
 import numpy as np
@@ -16,33 +16,41 @@ import jinja2
 from copy import deepcopy
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
-from pyppeteer import launch
 from numpy.random import default_rng
-from PyPDF2 import PdfReader, PdfWriter, PdfMerger 
+from PyPDF2 import PdfReader, PdfWriter, PdfMerger
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.print_page_options import PrintOptions
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
-async def get_browser():
-  return await launch({
-        'executablePath':'/usr/bin/chromium',
-        'headless':True,
-        'args':['--no-sandbox','--disable-setuid-sandbox']
-      },handleSIGINT=False,
-      handleSIGTERM=False,
-      handleSIGHUP=False)
+def get_browser():
+  options = webdriver.ChromeOptions()
+  options.add_argument("--headless")
+  options.add_argument("--no-sandbox")
+  options.add_argument("--disable-setuid-sandbox")
+  driver = webdriver.Chrome(options=options)
+  driver.implicitly_wait(2)
+  return driver
 
-async def html2pdf(file,sleep_time=0,page=None,browser=None,path=os.getcwd()):
+def html2pdf(file,browser=None,wait_for_id=None,path=os.getcwd()):
   fname,extension = file.rsplit('.',1)
-  if extension != 'html':
+  if extension != "html":
     raise ValueError(f"File {file} must be an html file")
 
-  if not page:
-    if not browser:
-      browser = await get_browser()
-    page = await browser.newPage()
+  if not browser:
+    browser = get_browser()
   
-  await page.goto(f"file://{path}/{fname}.html",waitUntil='networkidle0')
-  await asyncio.sleep(sleep_time)
-  await page.pdf({'path':f"{path}/{fname}.pdf",'printBackground':True, 'format':'A4'})
+  browser.get(f"file://{path}/{fname}.html")
+  if wait_for_id:
+    browser.find_element(By.ID,wait_for_id)
+  
+  print_options = PrintOptions()
+  print_options.page_width = 21.0
+  print_options.page_height = 29.7
+
+  base64code = browser.print_page(print_options)
+  with open(f"{path}/{fname}.pdf","wb") as f:
+    f.write(base64.b64decode(base64code))
 
 def merge_pdf(files,fname,path=os.getcwd()):
   outname = f"{path}/{fname}"
@@ -224,19 +232,17 @@ def generate_sec_html(df,i,sec,tpl,start=1,last=False,extra_css='',path=os.getcw
   with open(f"{path}/{sec['nombre']}.html",'w') as f:
       f.write(prueba)
 
-async def generate_content(examen,df,tpl,page=None,browser=None,path=os.getcwd()):
+def generate_content(examen,df,tpl,browser=None,path=os.getcwd()):
   start = 1
-  if not page:
-    if not browser:
-      browser = await get_browser()
-    page = await browser.newPage()
+  if not browser:
+    browser = get_browser()
 
   for i,sec in enumerate(examen['secciones']):
     d = df.loc[df['Sec']==sec['nombre'],:]
     last = (i == (len(examen['secciones'])-1))
     generate_sec_html(d,i,sec,tpl,start,last,examen['extra_css'],path)
     start = start + d[d['EsPadre']==False].shape[0]
-    await html2pdf(f"{sec['nombre']}.html",sleep_time=0,page=page,path=path)
+    html2pdf(f"{sec['nombre']}.html",browser=browser,wait_for_id="finished",path=path)
 
 def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
   reader = PdfReader(f"{path}/{sec['nombre']}.pdf")
@@ -251,15 +257,13 @@ def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
     f.write(html)
   return num_pages
 
-async def generate_backgrounds(examen,tpl,start_page=2,page=None,browser=None,path=os.getcwd()):
-  if not page:
-    if not browser:
-      browser = await get_browser()
-    page = await browser.newPage()
+def generate_backgrounds(examen,tpl,start_page=2,browser=None,path=os.getcwd()):
+  if not browser:
+    browser = get_browser()
   
   for i,sec in enumerate(examen['secciones']):
     start_page += generate_background_html(sec,tpl,sec_num=i+1,start_page=start_page,path=path)
-    await html2pdf(f"{sec['nombre']}-background.html",sleep_time=0,page=page,path=path)
+    html2pdf(f"{sec['nombre']}-background.html",browser=browser,wait_for_id="finished",path=path)
 
 def generate_sec_pdfs(examen,path=os.getcwd()):
   secciones = []
@@ -290,7 +294,7 @@ def generar_configuracion_yaml(examen,path=os.getcwd()):
     f.write(config)
   return outname
 
-async def generate(examen,include_html=False):
+def generate(examen,include_html=False):
   jinja_env = jinja2.Environment(
     #donde están los templates, por defecto es la carpeta actual
     loader = jinja2.FileSystemLoader('templates'),autoescape= True
@@ -315,20 +319,17 @@ async def generate(examen,include_html=False):
   df['html'] = df.apply(lambda x: render_item(item_tpl,x,examen),axis=1)
 
   # Objetos para convertir un html a pdf usando chromium
-  browser = await get_browser()
-  print(await browser.version())
-  page = await browser.newPage()
+  browser = get_browser()
 
   prueba_tpl = jinja_env.get_template('test.tpl.html')
-  await generate_content(examen,df,prueba_tpl,page=page,path=pwd.name)
+  generate_content(examen,df,prueba_tpl,browser=browser,path=pwd.name)
 
   background_tpl = jinja_env.get_template('background.tpl.html')
-  await generate_backgrounds(examen,background_tpl,start_page=2,page=page,path=pwd.name)
+  generate_backgrounds(examen,background_tpl,start_page=2,browser=browser,path=pwd.name)
+  
+  browser.quit()
   
   rutas = generate_sec_pdfs(examen,path=pwd.name)
-  
-  await page.close()
-  await browser.close()
 
   #Agregar carátula si se selecciono una
   if examen['carátula']:
@@ -359,7 +360,7 @@ async def generate(examen,include_html=False):
 def procesar(resultados,examen,include_html):
   with resultados:
     with st.spinner('Generando archivos...'):
-      ruta_zip,tmp = asyncio.run(generate(examen,include_html))
+      ruta_zip,tmp = generate(examen,include_html)
       st.header("Archivos generados")
       with open(ruta_zip,'rb') as file:
         st.download_button(

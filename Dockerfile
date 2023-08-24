@@ -12,8 +12,8 @@ RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula selec
 RUN apt-get install -y fontconfig ttf-mscorefonts-installer --no-install-recommends
 RUN fc-cache -f -v
 
-# Install chrome from repo
-RUN  apt-get install -y chromium --no-install-recommends
+# Install chrome-driver from repo
+RUN  apt-get install -y chromium-driver --no-install-recommends
 
 # Install python packages
 COPY requirements.txt ./

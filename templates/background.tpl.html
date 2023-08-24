@@ -107,4 +107,17 @@
     {% endfor %}
   </body>
   <script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></script>
+  <script>
+    class finishedRendering extends Paged.Handler{
+      constructor(chunker, polisher, caller) {
+        super(chunker, polisher, caller);
+      }
+      afterRendered(pages){
+        let d = document.createElement('div');
+        d.id = 'finished'
+        document.body.appendChild(d);
+      }
+    }
+    Paged.registerHandlers(finishedRendering);
+  </script>
 </html>
