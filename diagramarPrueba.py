@@ -48,6 +48,7 @@ def html2pdf(file,browser=None,wait_for_id=None,path=os.getcwd()):
   print_options = PrintOptions()
   print_options.page_width = 21.0
   print_options.page_height = 29.7
+  print_options.background = True
 
   base64code = browser.print_page(print_options)
   with open(f"{path}/{fname}.pdf","wb") as f:
