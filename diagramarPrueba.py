@@ -152,7 +152,7 @@ def generate_estructura(examen,df,path=os.getcwd()):
   est = items
   est = est.join(comp,on='Bank')
   est['Categoría'] = '02'
-  est['Error'] = ''
+  est['Error'] = 0.05
   est = est.join(temas,on='Category Path')
   est['Posición'] = np.arange(est.shape[0])+1
   est = est[['Item Name','Competencia','Tema','SubTema','Categoría','Stat 3','IRT b','Error','Posición','orden']]
