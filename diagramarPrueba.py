@@ -110,10 +110,7 @@ def load_files(examen):
       else:
         s = int(s)
       d.loc[d['Ord']==s,'Salto'] = True
-    
-    for b in sec['blancas']:
-      d.loc[d['Ord']==b,'Blanca'] = True
-    
+
     d.loc[d.iloc[-1:].index,'Ultimo'] = True
 
     l.append(d)
@@ -234,15 +231,35 @@ def generate_sec_html(df,i,sec,tpl,start=1,last=False,extra_css='',path=os.getcw
   with open(f"{path}/{sec['nombre']}.html",'w') as f:
       f.write(prueba)
 
-def generate_content(examen,df,tpl,browser=None,path=os.getcwd()):
+def calculate_breaks(sec,df,browser=None,wait_for_id=None,path=os.getcwd()):
+  if not browser:
+    browser = get_browser()
+  
+  browser.get(f"file://{path}/{sec['nombre']}.html")
+  if wait_for_id:
+    browser.find_element(By.ID,wait_for_id)
+  res = browser.execute_script('return getSizes()')
+  total = res['titleSize']
+  max_height = 1024
+  for i,r in enumerate(res['itemSizes']):
+    total += r
+    if total > max_height:
+      df.loc[df['Ord']==i,'Blanca'] = True
+      total = r -res['itemMarginTop']/2
+
+def generate_content(examen,df,item_tpl,examen_tpl,browser=None,path=os.getcwd()):
   start = 1
   if not browser:
     browser = get_browser()
-
+  df['html'] = df.apply(lambda x: render_item(item_tpl,x,examen),axis=1)
   for i,sec in enumerate(examen['secciones']):
-    d = df.loc[df['Sec']==sec['nombre'],:]
+    d = df.loc[df['Sec']==sec['nombre'],:].copy()
     last = (i == (len(examen['secciones'])-1))
-    generate_sec_html(d,i,sec,tpl,start,last,examen['extra_css'],path)
+    generate_sec_html(d,i,sec,examen_tpl,start,last,examen['extra_css'],path)
+    if sec['derCuad']:
+      calculate_breaks(sec,d,browser=browser,wait_for_id="finished",path=path)
+      d['html'] = d.apply(lambda x: render_item(item_tpl,x,examen),axis=1)
+      generate_sec_html(d,i,sec,examen_tpl,start,last,examen['extra_css'],path)
     start = start + d[d['EsPadre']==False].shape[0]
     html2pdf(f"{sec['nombre']}.html",browser=browser,wait_for_id="finished",path=path)
 
@@ -284,7 +301,6 @@ def generar_configuracion_yaml(examen,path=os.getcwd()):
   ex['carátula'] = ex['carátula'].name if ex['carátula'] else None
   d = {}
   for sec in ex['secciones']:
-    sec['blancas'] = ','.join(str(i) for i in sec['blancas']) if sec['blancas'] else None
     sec['saltos'] = ','.join(sec['saltos']) if sec['saltos'] else None
     sec['archivo'] = sec['archivo'].name
     d[sec['nombre']] = sec
@@ -316,15 +332,11 @@ def generate(examen,include_html=False):
 
   df = process_items(df)
 
-  # Generar el html de cada ítem
-  item_tpl = jinja_env.get_template('item.tpl.html')
-  df['html'] = df.apply(lambda x: render_item(item_tpl,x,examen),axis=1)
-
   # Objetos para convertir un html a pdf usando chromium
   browser = get_browser()
-
+  item_tpl = jinja_env.get_template('item.tpl.html')
   prueba_tpl = jinja_env.get_template('test.tpl.html')
-  generate_content(examen,df,prueba_tpl,browser=browser,path=pwd.name)
+  generate_content(examen,df,item_tpl,prueba_tpl,browser=browser,path=pwd.name)
 
   background_tpl = jinja_env.get_template('background.tpl.html')
   generate_backgrounds(examen,background_tpl,start_page=2,browser=browser,path=pwd.name)
@@ -384,7 +396,6 @@ def load_yaml(obj):
     sec['nombre'] = name
     sec['archivo'] = None
     sec['saltos'] = '' if sec['saltos'] is None else sec['saltos']
-    sec['blancas'] = '' if sec['blancas'] is None else sec['blancas']
     secciones.append(sec)
   yml['secciones'] = secciones
   if 'password' not in yml:
@@ -497,11 +508,6 @@ def main():
         value=defaults['secciones'][i]['saltos'] if i < defaults['nsecciones'] else '',
         help='Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7'
       ),
-      'blancas': container.text_input(
-        f'Páginas en blanco {i+1}',
-        value=defaults['secciones'][i]['blancas'] if i < defaults['nsecciones'] else '',
-        help='Indicar el número de ítem después del cual se quiere insertar una página en blanco, separar por comas si se quiere indicar varios ej. 5,6,7'
-      ),
       'derCuad': container.checkbox(
         'La cara derecha es cuadriculada',
         value=defaults['secciones'][i]['derCuad'] if i < defaults['nsecciones'] else False,
@@ -510,7 +516,6 @@ def main():
       ),
     }
     sec['saltos'] = [i for i in sec['saltos'].split(',') if sec['saltos']!='']
-    sec['blancas'] = [int(i) for i in sec['blancas'].split(',') if sec['blancas']!='']
     examen['secciones'].append(sec)
 
   submit = st.container()

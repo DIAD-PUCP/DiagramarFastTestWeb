@@ -135,3 +135,9 @@ li.choice.resaltar {
   margin-left:1.5cm ;
   margin-right: 2.1cm;
 }
+
+@media screen {
+  body{
+    width: 640px;
+  } 
+}

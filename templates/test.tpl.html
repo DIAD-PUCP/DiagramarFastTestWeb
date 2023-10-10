@@ -47,6 +47,14 @@
         d.id = 'finished'
         document.body.appendChild(d);
       });
+
+      function getSizes(){
+        let titleSize = document.querySelector('.title').getBoundingClientRect()['height'];
+        let itemMarginTop = parseFloat(window.getComputedStyle(document.querySelector('.item-1'))['marginTop']);
+        let itemSizes = Array.from(document.querySelectorAll('.item')).map(item=>item.getBoundingClientRect()['height'] + itemMarginTop);
+
+        return {titleSize:titleSize,itemMarginTop:itemMarginTop,itemSizes:itemSizes};
+      }
     </script>
   </body>
 </html>
