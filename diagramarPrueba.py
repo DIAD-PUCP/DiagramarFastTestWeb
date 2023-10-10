@@ -17,7 +17,7 @@ from copy import deepcopy
 from zipfile import ZipFile
 from bs4 import BeautifulSoup
 from numpy.random import default_rng
-from PyPDF2 import PdfReader, PdfWriter, PdfMerger
+from pypdf import PdfReader, PdfWriter, PdfMerger
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.print_page_options import PrintOptions
