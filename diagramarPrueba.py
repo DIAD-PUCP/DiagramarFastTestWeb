@@ -93,7 +93,7 @@ def load_files(examen):
     d = d.set_index('Unique Id')
     d['Pos'] = d['Pos'] + 1
     d['Sec'] = sec['nombre']
-    d['EsPadre'] = d['Category Path'] == '/Textos'
+    d['EsPadre'] = d['Total Points'] == 0
     d['Salto'] = False
     d['Continue'] = False
     d['Blanca'] = False
