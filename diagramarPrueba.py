@@ -56,11 +56,11 @@ def html2pdf(file,browser=None,wait_for_id=None,path=os.getcwd()):
 
 def merge_pdf(files,fname,path=os.getcwd()):
   outname = f"{path}/{fname}"
-  merger = PdfMerger()
+  writer = PdfWriter()
   for pdf in files:
     reader = PdfReader(pdf)
-    merger.append(reader)
-  merger.write(outname)
+    writer.append(reader)
+  writer.write(outname)
   return outname
 
 def stamp_pdf(content,stamp,fname,path=os.getcwd()):
