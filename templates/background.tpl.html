@@ -9,11 +9,6 @@
       }
 
       #seccion {
-        {% if start_page != 1 %}
-        counter-reset: page {{start_page}};
-        {% else %}
-        counter-reset: page 1;
-        {% endif %}
         position: running(seccionRunning);
         font-size: {{size}}em;
         font-weight: bold;
@@ -32,7 +27,15 @@
         text-align: center;
         margin: auto;
       }
-
+      {% for i in range(num_pages) %}
+      .pagina{{start_page+i}}{
+        counter-reset: page {{start_page+i}};
+      }
+      {% else %}
+      .pagina{
+        counter-reset: page 1;
+      }
+      {% endfor %}
       @media print {
 
         @page{
@@ -101,7 +104,7 @@
     <h1 id="numseccion">{{sec_num}}</h1>
     <h1 id="seccion">{{sec_name | upper}}</h1>
     {% for i in range(num_pages) %}
-    <div class="pagina"></div>
+    <div class="pagina pagina{{start_page+i}}"></div>
     {% else %}
     <div class="pagina"></div>
     {% endfor %}
