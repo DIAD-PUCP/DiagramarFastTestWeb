@@ -263,7 +263,7 @@ def generate_content(examen,df,item_tpl,examen_tpl,browser=None,path=os.getcwd()
     start = start + d[d['EsPadre']==False].shape[0]
     html2pdf(f"{sec['nombre']}.html",browser=browser,wait_for_id="finished",path=path)
 
-def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
+def generate_background_html(sec,tpl,grid,sec_num=1,start_page=2, path=os.getcwd()):
   reader = PdfReader(f"{path}/{sec['nombre']}.pdf")
   num_pages = len(reader.pages)
   numchars = len(sec['nombre'])
@@ -271,7 +271,7 @@ def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
     namesize = 2.5
   else:
     namesize = 2.5 *(1-((numchars-19)/(numchars-1)))
-  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec['nombre'],size=namesize,derCuad=sec['derCuad'])
+  html = tpl.render(num_pages=num_pages,start_page=start_page,sec_num=sec_num,sec_name=sec['nombre'],size=namesize,derCuad=sec['derCuad'],grid=grid)
   with open(f'{path}/{sec["nombre"]}-background.html','w') as f:
     f.write(html)
   return num_pages
@@ -279,9 +279,11 @@ def generate_background_html(sec,tpl,sec_num=1,start_page=2,path=os.getcwd()):
 def generate_backgrounds(examen,tpl,start_page=2,browser=None,path=os.getcwd()):
   if not browser:
     browser = get_browser()
-  
+  with open('assets/grid.svg') as f:
+    grid = f.read()
+  bgrid = base64.b64encode(grid.encode('utf-8')).decode('utf-8')
   for i,sec in enumerate(examen['secciones']):
-    start_page += generate_background_html(sec,tpl,sec_num=i+1,start_page=start_page,path=path)
+    start_page += generate_background_html(sec,tpl,sec_num=i+1,start_page=start_page,grid=bgrid,path=path)
     html2pdf(f"{sec['nombre']}-background.html",browser=browser,wait_for_id="finished",path=path)
 
 def generate_sec_pdfs(examen,path=os.getcwd()):

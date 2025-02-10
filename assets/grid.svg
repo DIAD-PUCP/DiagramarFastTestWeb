@@ -3,8 +3,8 @@
             <style>
                 line{
                     stroke:black;
-                    stroke-opacity:0.25;
-                    stroke-width: 0.5;
+                    stroke-opacity:0.5;
+                    stroke-width: 0.75;
                     shape-rendering: crispEdges;
                 }
             </style>
