@@ -8,11 +8,11 @@ import time
 import base64
 import tempfile
 import shutil
-from typing import Optional
+from typing import Annotated, Optional
 import warnings
 from zipfile import ZipFile
 from copy import deepcopy
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, computed_field
 import yaml
 import pandas as pd
 import numpy as np
@@ -26,13 +26,17 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.print_page_options import PrintOptions
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
+def validar_saltos(saltos:str) -> list[str]:
+    if saltos != '':
+        return saltos.split(',')
+    return []
 
 class Seccion(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     archivo: Optional[BytesIO] = None
     nombre: str = ''
     tiempo: str = ''
-    saltos: list[str] = []
+    saltos: Annotated[list[str], BeforeValidator(validar_saltos)] = []
     derCuad: bool = False
 
 
@@ -119,14 +123,14 @@ def encrypt_pdf(fname: str, password: str) -> None:
         writer.write(f)
 
 
-def load_files(examen: dict) -> pd.DataFrame:
+def load_files(examen: Examen) -> pd.DataFrame:
     l = []
-    for _, sec in enumerate(examen['secciones']):
-        d = pd.read_excel(sec['archivo']).reset_index().rename(
+    for sec in examen.secciones:
+        d = pd.read_excel(sec.archivo).reset_index().rename(
             columns={'index': 'Pos'})
         d = d.set_index('Unique Id')
         d['Pos'] = d['Pos'] + 1
-        d['Sec'] = sec['nombre']
+        d['Sec'] = sec.nombre
         d['EsPadre'] = d['Total Points'] == 0
         d['Salto'] = False
         d['Continue'] = False
@@ -134,10 +138,10 @@ def load_files(examen: dict) -> pd.DataFrame:
         d['Ultimo'] = False
 
         # Renumerar la prueba sin contar a los padres
-        d = d.join(d.loc[d['EsPadre'] == False, 'Pos'].rank().rename('Ord'))
+        d = d.join(d.loc[~d['EsPadre'], 'Pos'].rank().rename('Ord'))
         d['Ord'] = d['Ord'].fillna(0).astype(int)
 
-        for s in sec['saltos']:
+        for s in sec.saltos:
             if s[-1] == '*':
                 s = int(s[:-1])
                 d.loc[d['Ord'] == s, 'Continue'] = True
@@ -156,36 +160,36 @@ def load_files(examen: dict) -> pd.DataFrame:
         int).astype(str).rename('numtext'))
 
     # generar el orden de las alternativas
-    rng = default_rng(examen['código'])
+    rng = default_rng(examen.codigo)
     op = np.arange(1, 5)
     df['orden'] = df.apply(lambda x: rng.permutation(
-        op) if x['EsPadre'] != True else op, axis=1)
+        op) if not x['EsPadre'] else op, axis=1)
     # calcular la nueva "clave"
     df['clave'] = df['orden'].apply(lambda x: np.nonzero(x == 1)[0][0] + 1)
     return df
 
 
-def generate_anskey(examen: dict, df: pd.DataFrame, path: str = os.getcwd()) -> str:
+def generate_anskey(examen: Examen, df: pd.DataFrame, path: str = os.getcwd()) -> str:
     items = df[~df['EsPadre']]
     claves = items['clave'].apply(
         lambda x: chr(64+x)
     )
-    name = f"{path}/CLAVE-{examen['versión']}-{examen['código']}.xlsx"
-    claves.rename(examen['versión']).to_excel(
+    name = f"{path}/CLAVE-{examen.version}-{examen.codigo}.xlsx"
+    claves.rename(examen.version).to_excel(
         name,
         index=False
     )
     return name
 
 
-def generate_estructura(examen: dict, df: pd.DataFrame, path: str = os.getcwd()) -> str:
+def generate_estructura(examen: Examen, df: pd.DataFrame, path: str = os.getcwd()) -> str:
     items = df[~df['EsPadre']]
     comp = pd.read_excel(
         'Temas.xlsx', sheet_name='Competencia', dtype=str).set_index('Bank')
     temas = pd.read_excel('Temas.xlsx', sheet_name='Equivalencia',
                           dtype=str).set_index('RUTA FASTTEST')
     temas = temas.rename(columns={'CODTEMA': 'Tema', 'CODSUBTEMA': 'SubTema'})
-    ruta = f"{path}/ESTRUCTURA-{examen['versión']}-{examen['código']}.xlsx"
+    ruta = f"{path}/ESTRUCTURA-{examen.version}-{examen.codigo}.xlsx"
     est = items
     est = est.join(comp, on='Bank')
     est['Categoría'] = '02'
@@ -260,7 +264,7 @@ def process_items(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def render_item(item_tpl: jinja2.Template, item: pd.Series, examen: dict):
+def render_item(item_tpl: jinja2.Template, item: pd.Series, resaltar_clave: bool):
     return item_tpl.render(
         description=item['Item Text'],
         # segun el vector generado cual debería ser la primera alternativa
@@ -274,27 +278,27 @@ def render_item(item_tpl: jinja2.Template, item: pd.Series, examen: dict):
         salto=item['Salto'],
         cont=item['Continue'],
         blanca=item['Blanca'],
-        resaltar_clave=examen['resaltar_clave'],
+        resaltar_clave=resaltar_clave,
         clave=item['clave'],
     )
 
 
-def generate_sec_html(df: pd.DataFrame, i: int, sec: dict, tpl: jinja2.Template, start: int = 1, last: bool = False, extra_css: str = '', path: str = os.getcwd()) -> None:
+def generate_sec_html(df: pd.DataFrame, i: int, sec: Seccion, tpl: jinja2.Template, start: int = 1, last: bool = False, extra_css: str = '', path: str = os.getcwd()) -> None:
     body = '\n'.join(df['html'])
-    end = start + df[df['EsPadre'] == False].shape[0] - 1
-    prueba = tpl.render(nombre=sec['nombre'], num_seccion=i+1, items=body,
-                        start=start, end=end, tiempo=sec['tiempo'], last=last, extra_css=extra_css)
-    with open(f"{path}/{sec['nombre']}.html", 'w',encoding='utf-8') as f:
+    end = start + df[~df['EsPadre']].shape[0] - 1
+    prueba = tpl.render(nombre=sec.nombre, num_seccion=i+1, items=body,
+                        start=start, end=end, tiempo=sec.tiempo, last=last, extra_css=extra_css)
+    with open(f"{path}/{sec.nombre}.html", 'w',encoding='utf-8') as f:
         f.write(prueba)
 
 
-def calculate_breaks(sec: dict, df: pd.DataFrame, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None, path: str = os.getcwd()):
+def calculate_breaks(sec: Seccion, df: pd.DataFrame, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None, path: str = os.getcwd()):
     if not browser:
         browser = get_browser()
 
-    browser.get(f"file://{path}/{sec['nombre']}.html")
-    if wait_for_id:
-        browser.find_element(By.ID, wait_for_id)
+    browser.get(f"file://{path}/{sec.nombre}.html")
+    # if wait_for_id:
+    #     browser.find_element(By.ID, wait_for_id)
     res = browser.execute_script('return getSizes()')
     total = res['titleSize']
     max_height = 1024
@@ -305,88 +309,88 @@ def calculate_breaks(sec: dict, df: pd.DataFrame, browser: Optional[webdriver.Ch
             total = r - res['itemMarginTop']/2
 
 
-def generate_content(examen: dict, df: pd.DataFrame, item_tpl: jinja2.Template, examen_tpl: jinja2.Template, browser: Optional[webdriver.Chrome] = None, path: str = os.getcwd()):
+def generate_content(examen: Examen, df: pd.DataFrame, item_tpl: jinja2.Template, examen_tpl: jinja2.Template, browser: Optional[webdriver.Chrome] = None, path: str = os.getcwd()):
     start = 1
     if not browser:
         browser = get_browser()
-    df['html'] = df.apply(lambda x: render_item(item_tpl, x, examen), axis=1)
-    for i, sec in enumerate(examen['secciones']):
-        d = df.loc[df['Sec'] == sec['nombre'], :].copy()
-        last = (i == (len(examen['secciones'])-1))
+    df['html'] = df.apply(lambda x: render_item(item_tpl, x, examen.resaltar_clave), axis=1)
+    for i, sec in enumerate(examen.secciones):
+        d = df.loc[df['Sec'] == sec.nombre, :].copy()
+        last = (i == (len(examen.secciones)-1))
         generate_sec_html(d, i, sec, examen_tpl, start,
-                          last, examen['extra_css'], path)
-        if sec['derCuad']:
+                          last, '' if examen.extra_css is None else examen.extra_css, path)
+        if sec.derCuad:
             calculate_breaks(sec, d, browser=browser,
                              wait_for_id="finished", path=path)
             d['html'] = d.apply(lambda x: render_item(
-                item_tpl, x, examen), axis=1)
+                item_tpl, x, examen.resaltar_clave), axis=1)
             generate_sec_html(d, i, sec, examen_tpl, start,
-                              last, examen['extra_css'], path)
+                              last, '' if examen.extra_css is None else examen.extra_css, path)
         start = start + d[d['EsPadre'] == False].shape[0]
-        html2pdf(f"{sec['nombre']}.html", browser=browser,
+        html2pdf(f"{sec.nombre}.html", browser=browser,
                  wait_for_id="finished", path=path)
 
 
-def generate_background_html(sec: dict, tpl: jinja2.Template, grid: str, sec_num: int = 1, start_page: int = 2, path: str = os.getcwd()):
-    reader = PdfReader(f"{path}/{sec['nombre']}.pdf")
+def generate_background_html(sec: Seccion, tpl: jinja2.Template, grid: str, sec_num: int = 1, start_page: int = 2, path: str = os.getcwd()):
+    reader = PdfReader(f"{path}/{sec.nombre}.pdf")
     num_pages = len(reader.pages)
-    numchars = len(sec['nombre'])
+    numchars = len(sec.nombre)
     if numchars < 20:
         namesize = 2.5
     else:
         namesize = 2.5 * (1-((numchars-19)/(numchars-1)))
     html = tpl.render(num_pages=num_pages, start_page=start_page, sec_num=sec_num,
-                      sec_name=sec['nombre'], size=namesize, derCuad=sec['derCuad'], grid=grid)
-    with open(f'{path}/{sec["nombre"]}-background.html', 'w',encoding='utf-8') as f:
+                      sec_name=sec.nombre, size=namesize, derCuad=sec.derCuad, grid=grid)
+    with open(f'{path}/{sec.nombre}-background.html', 'w',encoding='utf-8') as f:
         f.write(html)
     return num_pages
 
 
-def generate_backgrounds(examen: dict, tpl: jinja2.Template, start_page: int = 2, browser: Optional[webdriver.Chrome] = None, path: str = os.getcwd()):
+def generate_backgrounds(examen: Examen, tpl: jinja2.Template, start_page: int = 2, browser: Optional[webdriver.Chrome] = None, path: str = os.getcwd()):
     if not browser:
         browser = get_browser()
     with open('assets/grid.svg',encoding='utf-8') as f:
         grid = f.read()
     bgrid = base64.b64encode(grid.encode('utf-8')).decode('utf-8')
-    for i, sec in enumerate(examen['secciones']):
+    for i, sec in enumerate(examen.secciones):
         start_page += generate_background_html(
             sec, tpl, sec_num=i+1, start_page=start_page, grid=bgrid, path=path)
-        html2pdf(f"{sec['nombre']}-background.html",
+        html2pdf(f"{sec.nombre}-background.html",
                  browser=browser, wait_for_id="finished", path=path)
 
 
-def generate_sec_pdfs(examen: dict, path: str = os.getcwd()):
+def generate_sec_pdfs(examen: Examen, path: str = os.getcwd()):
     secciones = []
-    for _, sec in enumerate(examen['secciones']):
+    for sec in examen.secciones:
         outname = stamp_pdf(
-            content=f"{path}/{sec['nombre']}.pdf",
-            stamp=f"{path}/{sec['nombre']}-background.pdf",
-            fname=f"{sec['nombre']}-{examen['versión']}-{examen['código']}.pdf",
+            content=f"{path}/{sec.nombre}.pdf",
+            stamp=f"{path}/{sec.nombre}-background.pdf",
+            fname=f"{sec.nombre}-{examen.version}-{examen.codigo}.pdf",
             path=path
         )
         secciones.append(outname)
     return secciones
 
 
-def generar_configuracion_yaml(examen: dict, path: str = os.getcwd()):
-    ex = deepcopy(examen)
-    ex['carátula'] = ex['carátula'].name if ex['carátula'] else None
-    d = {}
-    for sec in ex['secciones']:
-        sec['saltos'] = ','.join(sec['saltos']) if sec['saltos'] else None
-        sec['archivo'] = sec['archivo'].name
-        d[sec['nombre']] = sec
-        sec.pop('nombre')
-    ex['secciones'] = d
-    config = yaml.dump(ex, default_flow_style=False,
-                       sort_keys=False, allow_unicode=True)
-    outname = f"{path}/config.yml"
-    with open(outname, 'w',encoding='utf-8') as f:
-        f.write(config)
-    return outname
+# def generar_configuracion_yaml(examen: Examen, path: str = os.getcwd()):
+#     ex = deepcopy(examen)
+#     ex.caratula = ex.caratula.name if ex.caratula else None
+#     d = {}
+#     for sec in ex.secciones:
+#         sec.saltos = ','.join(sec.saltos) if sec['saltos'] else None
+#         sec['archivo'] = sec['archivo'].name
+#         d[sec['nombre']] = sec
+#         sec.pop('nombre')
+#     ex['secciones'] = d
+#     config = yaml.dump(ex, default_flow_style=False,
+#                        sort_keys=False, allow_unicode=True)
+#     outname = f"{path}/config.yml"
+#     with open(outname, 'w',encoding='utf-8') as f:
+#         f.write(config)
+#     return outname
 
 
-def generate(examen: dict, include_html: bool = False):
+def generate(examen: Examen, include_html: bool = False):
     jinja_env = jinja2.Environment(
         # donde están los templates, por defecto es la carpeta actual
         loader=jinja2.FileSystemLoader('templates'), autoescape=True
@@ -422,36 +426,36 @@ def generate(examen: dict, include_html: bool = False):
     rutas = generate_sec_pdfs(examen, path=pwd.name)
 
     # Agregar carátula si se selecciono una
-    if examen['carátula']:
-        ruta_caratula = f"{pwd.name}/CARÁTULA-{examen['versión']}.pdf"
+    if examen.caratula:
+        ruta_caratula = f"{pwd.name}/CARÁTULA-{examen.version}.pdf"
         with open(ruta_caratula, 'wb') as f:
-            f.write(examen['carátula'].getbuffer())
+            f.write(examen.caratula.getbuffer())
         rutas = [ruta_caratula] + rutas
 
     ruta_final = merge_pdf(
-        rutas, f"PRUEBA-{examen['versión']}-{examen['código']}.pdf", path=pwd.name)
+        rutas, f"PRUEBA-{examen.version}-{examen.codigo}.pdf", path=pwd.name)
 
-    if ('password' in examen) and (examen['password'] != ''):
+    if (examen.password) and (examen.password != ''):
         for archivo in rutas + [ruta_final]:
-            encrypt_pdf(archivo, examen['password'])
+            encrypt_pdf(archivo, examen.password)
 
-    ruta_yaml = generar_configuracion_yaml(examen, path=pwd.name)
+    #ruta_yaml = generar_configuracion_yaml(examen, path=pwd.name)
 
-    rutas = rutas + [ruta_final, ruta_clave, ruta_estructura, ruta_yaml]
+    rutas = rutas + [ruta_final, ruta_clave, ruta_estructura]#, ruta_yaml]
 
     if include_html:
         rutas = rutas + \
             [f"{pwd.name}/{r}" for r in os.listdir(pwd.name)
              if r.endswith('.html')]
 
-    ruta_zip = f"{pwd.name}/{examen['versión']}-{examen['código']}.zip"
+    ruta_zip = f"{pwd.name}/{examen.version}-{examen.codigo}.zip"
     with ZipFile(ruta_zip, 'w') as z:
         for ruta_final in rutas:
             z.write(ruta_final, arcname=ruta_final.split('/')[-1])
     return ruta_zip, pwd
 
 
-def procesar(resultados, examen: dict, include_html: bool):
+def procesar(resultados, examen: Examen, include_html: bool):
     with resultados:
         with st.spinner('Generando archivos...'):
             ruta_zip, _ = generate(examen, include_html)
@@ -491,7 +495,7 @@ def main():
     st.title('Diagramar prueba - FastTestWeb')
 
     with st.sidebar:
-        _ = st.file_uploader(
+        est_config = st.file_uploader(
             'Archivo de configuración',
             help='El archivo de configuración'
         )
@@ -507,18 +511,18 @@ def main():
     datos = st.container()
 
     examen = {
-        'versión': datos.text_input(
-            'Versión',
+        'version': datos.text_input(
+            'Version',
             value=default_examen.version,
             help='Es para el nombre de archivo y asignar los temas y subtemas en la estructura (CIENCIAS,LETRAS,ARTE)'
         ),
-        'código': datos.number_input(
+        'codigo': datos.number_input(
             'Código',
             value=default_examen.codigo,
             format='%d',
             help='Dejar en 0 si se genera por primera vez, ingresar un código si se desea mantener siempre la mismas claves'
         ),
-        'carátula': datos.file_uploader(
+        'caratula': datos.file_uploader(
             'Carátula',
             help='Adjuntar una carátula si se desea incluir en la versión final'
         ),
@@ -561,8 +565,8 @@ def main():
             type='password'
         )
 
-    if examen['código'] == 0:
-        examen['código'] = int(time.time())
+    if examen['codigo'] == 0:
+        examen['codigo'] = int(time.time())
 
     for i in range(examen['nsecciones']):
         container = st.container()
@@ -594,11 +598,7 @@ def main():
                 key=f'Quad{i}'
             ),
         }
-        sec['saltos'] = [i for i in sec['saltos'].split(
-            ',') if sec['saltos'] != '']
         examen['secciones'].append(sec)
-
-    Examen.model_validate(examen)
 
     submit = st.container()
     resultados = st.container()
@@ -606,7 +606,7 @@ def main():
 
     btn = submit.button('PROCESAR')
     if btn:
-        procesar(resultados, examen, include_html)
+        procesar(resultados, Examen.model_validate(examen), include_html)
 
 
 if __name__ == "__main__":
