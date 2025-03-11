@@ -297,8 +297,8 @@ def calculate_breaks(sec: Seccion, df: pd.DataFrame, browser: Optional[webdriver
         browser = get_browser()
 
     browser.get(f"file://{path}/{sec.nombre}.html")
-    # if wait_for_id:
-    #     browser.find_element(By.ID, wait_for_id)
+    if wait_for_id:
+        browser.find_element(By.ID, wait_for_id)
     res = browser.execute_script('return getSizes()')
     total = res['titleSize']
     max_height = 1024
