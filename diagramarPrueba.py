@@ -90,6 +90,22 @@ def html2pdf(file: str, browser: Optional[webdriver.Chrome] = None, wait_for_id:
     with open(f"{path}/{fname}.pdf", "wb") as f:
         f.write(base64.b64decode(base64code))
 
+def html2pdf2(file: BytesIO,browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None) -> BytesIO:
+    if not browser:
+        browser = get_browser()
+    
+    browser.get("data:text/html;base64," + base64.b64encode(file.getbuffer()).decode())
+    if wait_for_id:
+        browser.find_element(By.ID, wait_for_id)
+
+    print_options = PrintOptions()
+    print_options.page_width = 21.0
+    print_options.page_height = 29.7
+    print_options.background = True
+
+    base64code = browser.print_page(print_options)
+    pdf_file = BytesIO(base64.b64decode(base64code))
+    return pdf_file
 
 def merge_pdf(files: list[str], fname: str, path: str = os.getcwd()) -> str:
     outname = f"{path}/{fname}"
@@ -172,27 +188,25 @@ def load_files(examen: Examen) -> pd.DataFrame:
     return df
 
 
-def generate_anskey(examen: Examen, df: pd.DataFrame, path: str = os.getcwd()) -> str:
+def generate_anskey(df:pd.DataFrame,version:str) -> BytesIO:
     items = df[~df['EsPadre']]
     claves = items['clave'].apply(
         lambda x: chr(64+x)
     )
-    name = f"{path}/CLAVE-{examen.version}-{examen.codigo}.xlsx"
-    claves.rename(examen.version).to_excel(
-        name,
+    clave_file = BytesIO()
+    claves.rename(version).to_excel(
+        clave_file,
         index=False
     )
-    return name
+    return clave_file
 
-
-def generate_estructura(examen: Examen, df: pd.DataFrame, path: str = os.getcwd()) -> str:
+def generate_estructura(df: pd.DataFrame) -> BytesIO:
     items = df[~df['EsPadre']]
     comp = pd.read_excel(
         'Temas.xlsx', sheet_name='Competencia', dtype=str).set_index('Bank')
     temas = pd.read_excel('Temas.xlsx', sheet_name='Equivalencia',
                           dtype=str).set_index('RUTA FASTTEST')
     temas = temas.rename(columns={'CODTEMA': 'Tema', 'CODSUBTEMA': 'SubTema'})
-    ruta = f"{path}/ESTRUCTURA-{examen.version}-{examen.codigo}.xlsx"
     est = items
     est = est.join(comp, on='Bank')
     est['Categoría'] = '02'
@@ -203,8 +217,9 @@ def generate_estructura(examen: Examen, df: pd.DataFrame, path: str = os.getcwd(
                'Categoría', 'Stat 3', 'IRT b', 'Error', 'Posición', 'orden']]
     est.columns = ['CodPregunta OCA', 'Competencia', 'Tema', 'SubTema', 'Categoria',
                    'N', 'Medición', 'Error', 'Posición\npregunta', 'Orden Alternativas']
-    est.to_excel(ruta)
-    return ruta
+    archivo_est = BytesIO()
+    est.to_excel(archivo_est)
+    return archivo_est
 
 
 def replace_equations(markup: str) -> Optional[str]:
@@ -358,8 +373,10 @@ def generate_backgrounds(examen: Examen, tpl: jinja2.Template, start_page: int =
     for i, sec in enumerate(examen.secciones):
         start_page += generate_background_html(
             sec, tpl, sec_num=i+1, start_page=start_page, grid=bgrid, path=path)
-        html2pdf(f"{sec.nombre}-background.html",
-                 browser=browser, wait_for_id="finished", path=path)
+        with open(f"{path}/{sec.nombre}-background.html",'rb') as f:
+            pdf = html2pdf2(BytesIO(f.read()),browser=browser,wait_for_id="finished")
+            with open(f"{path}/{sec.nombre}-background.pdf", "wb") as f2:
+                f2.write(pdf.getvalue())
 
 
 def generate_sec_pdfs(examen: Examen, path: str = os.getcwd()):
@@ -399,8 +416,14 @@ def generate(examen: Examen, include_html: bool = False):
     df = load_files(examen)
 
     # generar archivo de estructura y archivo de claves
-    ruta_estructura = generate_estructura(examen, df, path=pwd.name)
-    ruta_clave = generate_anskey(examen, df, path=pwd.name)
+    estructura = generate_estructura(df)
+    ruta_estructura = f"{pwd.name}/ESTRUCTURA-{examen.version}-{examen.codigo}.xlsx"
+    with open(ruta_estructura,'wb') as f:
+        f.write(estructura.getvalue())
+    clave = generate_anskey(df, version=examen.version) # type: ignore
+    ruta_clave = f'{pwd.name}/CLAVE-{examen.version}-{examen.codigo}.xlsx'
+    with open(ruta_clave,'wb') as f:
+        f.write(clave.getvalue())
 
     df = process_items(df)
 
@@ -447,20 +470,6 @@ def generate(examen: Examen, include_html: bool = False):
         for ruta_final in rutas:
             z.write(ruta_final, arcname=ruta_final.split('/')[-1])
     return ruta_zip, pwd
-
-
-def procesar(resultados, examen: Examen, include_html: bool):
-    with resultados:
-        with st.spinner('Generando archivos...'):
-            ruta_zip, _ = generate(examen, include_html)
-            st.header("Archivos generados")
-            with open(ruta_zip, 'rb') as file:
-                st.download_button(
-                    "Descargar Archivos",
-                    data=file,
-                    file_name=ruta_zip.split('/')[-1],
-                    mime="application/zip"
-                )
 
 
 def load_yaml(obj: BytesIO)->Examen:
@@ -592,7 +601,17 @@ def main():
 
     btn = submit.button('PROCESAR')
     if btn:
-        procesar(resultados, Examen.model_validate(examen), include_html)
+        with resultados:
+            with st.spinner('Generando archivos...'):
+                ruta_zip, _ = generate(Examen.model_validate(examen), include_html)
+                st.header("Archivos generados")
+                with open(ruta_zip, 'rb') as file:
+                    st.download_button(
+                        "Descargar Archivos",
+                        data=file,
+                        file_name=ruta_zip.split('/')[-1],
+                        mime="application/zip"
+                    )
 
 
 if __name__ == "__main__":
