@@ -12,7 +12,7 @@ from typing import Annotated, Optional
 import warnings
 from zipfile import ZipFile
 from copy import deepcopy
-from pydantic import BaseModel, BeforeValidator, ConfigDict, computed_field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, computed_field
 import yaml
 import pandas as pd
 import numpy as np
@@ -33,7 +33,7 @@ def validar_saltos(saltos:str) -> list[str]:
 
 class Seccion(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    archivo: Optional[BytesIO] = None
+    archivo: Optional[BytesIO] = Field(default=None, exclude=True)
     nombre: str = ''
     tiempo: str = ''
     saltos: Annotated[list[str], BeforeValidator(validar_saltos)] = []
@@ -45,7 +45,7 @@ class Examen(BaseModel):
     version: Optional[str] = None
     codigo: int = 0
     password: Optional[str] = None
-    caratula: Optional[BytesIO] = None
+    caratula: Optional[BytesIO] = Field(default=None, exclude=True)
     resaltar_clave: bool = False
     secciones: list[Seccion] = []
     extra_css: Optional[str] = None
@@ -372,22 +372,13 @@ def generate_sec_pdfs(examen: Examen, path: str = os.getcwd()):
     return secciones
 
 
-# def generar_configuracion_yaml(examen: Examen, path: str = os.getcwd()):
-#     ex = deepcopy(examen)
-#     ex.caratula = ex.caratula.name if ex.caratula else None
-#     d = {}
-#     for sec in ex.secciones:
-#         sec.saltos = ','.join(sec.saltos) if sec['saltos'] else None
-#         sec['archivo'] = sec['archivo'].name
-#         d[sec['nombre']] = sec
-#         sec.pop('nombre')
-#     ex['secciones'] = d
-#     config = yaml.dump(ex, default_flow_style=False,
-#                        sort_keys=False, allow_unicode=True)
-#     outname = f"{path}/config.yml"
-#     with open(outname, 'w',encoding='utf-8') as f:
-#         f.write(config)
-#     return outname
+def generar_configuracion_yaml(examen: Examen, path: str = os.getcwd())->str:
+    config = yaml.dump(examen.model_dump(), default_flow_style=False,
+                       sort_keys=False, allow_unicode=True)
+    outname = f"{path}/config.yml"
+    with open(outname, 'w',encoding='utf-8') as f:
+        f.write(config)
+    return outname
 
 
 def generate(examen: Examen, include_html: bool = False):
@@ -439,9 +430,9 @@ def generate(examen: Examen, include_html: bool = False):
         for archivo in rutas + [ruta_final]:
             encrypt_pdf(archivo, examen.password)
 
-    #ruta_yaml = generar_configuracion_yaml(examen, path=pwd.name)
+    ruta_yaml = generar_configuracion_yaml(examen, path=pwd.name)
 
-    rutas = rutas + [ruta_final, ruta_clave, ruta_estructura]#, ruta_yaml]
+    rutas = rutas + [ruta_final, ruta_clave, ruta_estructura, ruta_yaml]
 
     if include_html:
         rutas = rutas + \
