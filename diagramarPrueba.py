@@ -11,8 +11,7 @@ import shutil
 from typing import Annotated, Optional
 import warnings
 from zipfile import ZipFile
-from copy import deepcopy
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, computed_field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, computed_field, field_serializer
 import yaml
 import pandas as pd
 import numpy as np
@@ -38,6 +37,10 @@ class Seccion(BaseModel):
     tiempo: str = ''
     saltos: Annotated[list[str], BeforeValidator(validar_saltos)] = []
     derCuad: bool = False
+
+    @field_serializer('saltos')
+    def serialize_saltos(self,saltos:list[str]):
+        return ','.join(saltos) if saltos else ''
 
 
 class Examen(BaseModel):
@@ -373,7 +376,7 @@ def generate_sec_pdfs(examen: Examen, path: str = os.getcwd()):
 
 
 def generar_configuracion_yaml(examen: Examen, path: str = os.getcwd())->str:
-    config = yaml.dump(examen.model_dump(), default_flow_style=False,
+    config = yaml.dump(examen.model_dump(exclude_none=True), default_flow_style=False,
                        sort_keys=False, allow_unicode=True)
     outname = f"{path}/config.yml"
     with open(outname, 'w',encoding='utf-8') as f:
@@ -460,23 +463,9 @@ def procesar(resultados, examen: Examen, include_html: bool):
                 )
 
 
-def load_yaml(obj: BytesIO):
-    if obj == None:
-        with open('defaults.yml', 'r',encoding='utf-8') as f:
-            yml = yaml.safe_load(f)
-    else:
-        yml = yaml.safe_load(obj)
-    secciones = []
-    yml['carátula'] = None
-    for name, sec in yml['secciones'].items():
-        sec['nombre'] = name
-        sec['archivo'] = None
-        sec['saltos'] = '' if sec['saltos'] is None else sec['saltos']
-        secciones.append(sec)
-    yml['secciones'] = secciones
-    if 'password' not in yml:
-        yml['password'] = ''
-    return yml
+def load_yaml(obj: BytesIO)->Examen:
+    yml = yaml.safe_load(obj)
+    return Examen.model_validate(yml)
 
 
 def main():
@@ -495,9 +484,11 @@ def main():
             value=False,
             help='Los archivos HTML sirven para depurar errores'
         )
-
-    default_examen = Examen()
-    default_seccion = Seccion()
+    
+    if est_config:
+        default_examen = load_yaml(est_config)
+    else:
+        default_examen = Examen()
 
     datos = st.container()
 
@@ -560,6 +551,10 @@ def main():
         examen['codigo'] = int(time.time())
 
     for i in range(examen['nsecciones']):
+        if default_examen.nsecciones != 0:
+            default_seccion = default_examen.secciones[i]
+        else:
+            default_seccion = Seccion()
         container = st.container()
         container.subheader(f'Sección {i+1}')
         sec = {
@@ -579,7 +574,7 @@ def main():
             ),
             'saltos': container.text_input(
                 f'Saltos de página {i+1}',
-                value=default_seccion.saltos if default_seccion.saltos else '',
+                value=','.join(default_seccion.saltos),
                 help='Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7'
             ),
             'derCuad': container.checkbox(
