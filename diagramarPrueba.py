@@ -90,11 +90,11 @@ def html2pdf(file: str, browser: Optional[webdriver.Chrome] = None, wait_for_id:
     with open(f"{path}/{fname}.pdf", "wb") as f:
         f.write(base64.b64decode(base64code))
 
-def html2pdf2(file: BytesIO,browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None) -> BytesIO:
+def html2pdf2(html: str, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None) -> BytesIO:
     if not browser:
         browser = get_browser()
     
-    browser.get("data:text/html;base64," + base64.b64encode(file.getbuffer()).decode())
+    browser.get("data:text/html;base64," + base64.b64encode(html.encode('utf-8')).decode())
     if wait_for_id:
         browser.find_element(By.ID, wait_for_id)
 
@@ -282,7 +282,7 @@ def process_items(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def render_item(item_tpl: jinja2.Template, item: pd.Series, resaltar_clave: bool):
+def render_item(item_tpl: jinja2.Template, item: pd.Series, resaltar_clave: bool)->str:
     return item_tpl.render(
         description=item['Item Text'],
         # segun el vector generado cual debería ser la primera alternativa
@@ -301,20 +301,19 @@ def render_item(item_tpl: jinja2.Template, item: pd.Series, resaltar_clave: bool
     )
 
 
-def generate_sec_html(df: pd.DataFrame, i: int, sec: Seccion, tpl: jinja2.Template, start: int = 1, last: bool = False, extra_css: str = '', path: str = os.getcwd()) -> None:
+def generate_sec_html(df: pd.DataFrame, i: int, sec: Seccion, tpl: jinja2.Template, start: int = 1, last: bool = False, extra_css: str = '') -> str:
     body = '\n'.join(df['html'])
     end = start + df[~df['EsPadre']].shape[0] - 1
     prueba = tpl.render(nombre=sec.nombre, num_seccion=i+1, items=body,
                         start=start, end=end, tiempo=sec.tiempo, last=last, extra_css=extra_css)
-    with open(f"{path}/{sec.nombre}.html", 'w',encoding='utf-8') as f:
-        f.write(prueba)
+    return prueba
 
 
-def calculate_breaks(sec: Seccion, df: pd.DataFrame, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None, path: str = os.getcwd()):
+def calculate_breaks(html: str, df: pd.DataFrame, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None):
     if not browser:
         browser = get_browser()
 
-    browser.get(f"file://{path}/{sec.nombre}.html")
+    browser.get("data:text/html;base64," + base64.b64encode(html.encode('utf-8')).decode())
     if wait_for_id:
         browser.find_element(By.ID, wait_for_id)
     res = browser.execute_script('return getSizes()')
@@ -327,26 +326,34 @@ def calculate_breaks(sec: Seccion, df: pd.DataFrame, browser: Optional[webdriver
             total = r - res['itemMarginTop']/2
 
 
-def generate_content(examen: Examen, df: pd.DataFrame, item_tpl: jinja2.Template, examen_tpl: jinja2.Template, browser: Optional[webdriver.Chrome] = None, path: str = os.getcwd()):
+def generate_content(examen: Examen, df: pd.DataFrame, item_tpl: jinja2.Template, examen_tpl: jinja2.Template, browser: Optional[webdriver.Chrome] = None, path: str = os.getcwd())->list[tuple[str,str,BytesIO]]:
     start = 1
     if not browser:
         browser = get_browser()
     df['html'] = df.apply(lambda x: render_item(item_tpl, x, examen.resaltar_clave), axis=1)
+    res = []
     for i, sec in enumerate(examen.secciones):
         d = df.loc[df['Sec'] == sec.nombre, :].copy()
         last = (i == (len(examen.secciones)-1))
-        generate_sec_html(d, i, sec, examen_tpl, start,
-                          last, '' if examen.extra_css is None else examen.extra_css, path)
+        html = generate_sec_html(d, i, sec, examen_tpl, start,
+                          last, '' if examen.extra_css is None else examen.extra_css)
         if sec.derCuad:
-            calculate_breaks(sec, d, browser=browser,
-                             wait_for_id="finished", path=path)
+            calculate_breaks(html, d, browser=browser,
+                             wait_for_id="finished")
             d['html'] = d.apply(lambda x: render_item(
                 item_tpl, x, examen.resaltar_clave), axis=1)
-            generate_sec_html(d, i, sec, examen_tpl, start,
-                              last, '' if examen.extra_css is None else examen.extra_css, path)
+            html = generate_sec_html(d, i, sec, examen_tpl, start,
+                              last, '' if examen.extra_css is None else examen.extra_css)
         start = start + d[d['EsPadre'] == False].shape[0]
-        html2pdf(f"{sec.nombre}.html", browser=browser,
-                 wait_for_id="finished", path=path)
+
+        with open(f"{path}/{sec.nombre}.html", 'w',encoding='utf-8') as f:
+            f.write(html)
+        pdf = html2pdf2(html, browser=browser,
+                 wait_for_id="finished")
+        with open(f"{path}/{sec.nombre}", "wb") as f:
+            f.write(pdf)
+        res.append((sec.nombre,html,pdf))
+    return res
 
 
 def generate_background_html(sec: Seccion, tpl: jinja2.Template, grid: str, sec_num: int = 1, start_page: int = 2, path: str = os.getcwd()):
