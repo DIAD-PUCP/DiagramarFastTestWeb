@@ -116,6 +116,15 @@ def merge_pdf(files: list[str], fname: str, path: str = os.getcwd()) -> str:
     writer.write(outname)
     return outname
 
+def merge_pdf2(files: list[BytesIO]) -> BytesIO:
+    writer = PdfWriter()
+    res = BytesIO()
+    for pdf in files:
+        reader = PdfReader(pdf)
+        writer.append(reader)
+    writer.write(res)
+    return res
+
 
 def stamp_pdf(content: str, stamp: str, fname: str, path: str = os.getcwd()) -> str:
     outname = f"{path}/{fname}"
@@ -131,6 +140,20 @@ def stamp_pdf(content: str, stamp: str, fname: str, path: str = os.getcwd()) -> 
     writer.write(outname)
     return outname
 
+def stamp_pdf2(content: BytesIO, stamp: BytesIO) -> BytesIO:
+    stamp_reader = PdfReader(stamp)
+    content_reader = PdfReader(content)
+    writer = PdfWriter()
+    res = BytesIO()
+    for c, s in zip(stamp_reader.pages, content_reader.pages):
+        new_page = c
+        mediabox = c.mediabox
+        new_page.merge_page(s)
+        new_page.mediabox = mediabox
+        writer.add_page(new_page)
+    writer.write(res)
+    return res
+
 
 def encrypt_pdf(fname: str, password: str) -> None:
     reader = PdfReader(fname)
@@ -140,6 +163,15 @@ def encrypt_pdf(fname: str, password: str) -> None:
     writer.encrypt(password)
     with open(fname, "wb") as f:
         writer.write(f)
+
+def encrypt_pdf2(content: BytesIO, password: str) -> BytesIO:
+    reader = PdfReader(content)
+    writer = PdfWriter()
+    for page in reader.pages:
+        writer.add_page(page)
+    writer.encrypt(password)
+    res = BytesIO()
+    writer.write(res)
 
 
 def load_files(examen: Examen) -> pd.DataFrame:
