@@ -2,16 +2,13 @@
 # coding: utf-8
 
 from io import BytesIO
-import os
 import re
 import time
 import base64
-import tempfile
-import shutil
 from typing import Annotated, Optional
 import warnings
 from zipfile import ZipFile
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, computed_field, field_serializer
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_serializer
 import yaml
 import pandas as pd
 import numpy as np
@@ -25,10 +22,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.print_page_options import PrintOptions
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
-def validar_saltos(saltos:str) -> list[str]:
+
+def validar_saltos(saltos: str) -> list[str]:
     if saltos != '':
         return saltos.split(',')
     return []
+
 
 class Seccion(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -37,10 +36,65 @@ class Seccion(BaseModel):
     tiempo: str = ''
     saltos: Annotated[list[str], BeforeValidator(validar_saltos)] = []
     derCuad: bool = False
+    items_df: Optional[pd.DataFrame] = Field(default=None, exclude=True)
+    html: Optional[str] = Field(default=None, exclude=True)
+    pdf_final: Optional[BytesIO] = Field(default=None, exclude=True)
+    pdf: Optional[BytesIO] = Field(default=None, exclude=True)
+    bhtml: Optional[str] = Field(default=None, exclude=True)
+    bpdf: Optional[BytesIO] = Field(default=None, exclude=True)
+
+    def num_pages(self) -> int:
+        if self.pdf is not None:
+            reader = PdfReader(self.pdf)
+            num_pages = len(reader.pages)
+            return num_pages
+        return 0
+
+    def name_size(self) -> float:
+        numchars = len(self.nombre)
+        if numchars < 20:
+            namesize = 2.5
+        else:
+            namesize = 2.5 * (1-((numchars-19)/(numchars-1)))
+        return namesize
 
     @field_serializer('saltos')
-    def serialize_saltos(self,saltos:list[str]):
+    def serialize_saltos(self, saltos: list[str]):
         return ','.join(saltos) if saltos else ''
+
+    def generate_sec_html(self, tpl: jinja2.Template, num_seccion: int, styles: str, start: int = 1, last: bool = False, extra_css: Optional[str] = None):
+        if self.items_df is not None:
+            body = '\n'.join(self.items_df['html'])
+            end = start + self.items_df[self.items_df['EsPadre']].shape[0] - 1
+            html = tpl.render(
+                nombre=self.nombre, num_seccion=num_seccion, items=body,
+                start=start, end=end, tiempo=self.tiempo, last=last, extra_css=extra_css or '',
+                styles=styles)
+            self.html = html
+
+    def calculate_breaks(self, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None):
+        if (self.html is not None) and (self.items_df is not None):
+            if not browser:
+                browser = get_browser()
+
+            browser.get("data:text/html;base64," +
+                        base64.b64encode(self.html.encode('utf-8')).decode())
+            if wait_for_id:
+                browser.find_element(By.ID, wait_for_id)
+            res = browser.execute_script('return getSizes()')
+            total = res['titleSize']
+            max_height = 1024
+            for i, r in enumerate(res['itemSizes']):
+                total += r
+                if total > max_height:
+                    self.items_df.loc[self.items_df['Ord']
+                                      == i, 'Blanca'] = True
+                    total = r - res['itemMarginTop']/2
+
+    def generate_background_html(self, tpl: jinja2.Template, grid: str, sec_num: int = 1, start_page: int = 2):
+        self.bhtml = tpl.render(
+            num_pages=self.num_pages(), start_page=start_page, sec_num=sec_num,
+            sec_name=self.nombre, size=self.name_size(), derCuad=self.derCuad, grid=grid)
 
 
 class Examen(BaseModel):
@@ -52,10 +106,18 @@ class Examen(BaseModel):
     resaltar_clave: bool = False
     secciones: list[Seccion] = []
     extra_css: Optional[str] = None
+    pdf: Optional[BytesIO] = Field(default=None, exclude=True)
+    clave: Optional[BytesIO] = Field(default=None, exclude=True)
+    estructura: Optional[BytesIO] = Field(default=None, exclude=True)
+    config_yaml: Optional[str] = Field(default=None, exclude=True)
 
-    @computed_field
     def nsecciones(self) -> int:
         return len(self.secciones)
+
+    def generar_configuracion_yaml(self):
+        config = yaml.dump(self.model_dump(exclude_none=True), default_flow_style=False,
+                           sort_keys=False, allow_unicode=True)
+        self.config_yaml = config
 
 
 def get_browser() -> webdriver.Chrome:
@@ -69,32 +131,11 @@ def get_browser() -> webdriver.Chrome:
     return driver
 
 
-def html2pdf(file: str, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None, path: str = os.getcwd()) -> None:
-    fname, extension = file.rsplit('.', 1)
-    if extension != "html":
-        raise ValueError(f"File {file} must be an html file")
-
+def html2pdf(html: str, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None) -> BytesIO:
     if not browser:
         browser = get_browser()
-
-    browser.get(f"file://{path}/{fname}.html")
-    if wait_for_id:
-        browser.find_element(By.ID, wait_for_id)
-
-    print_options = PrintOptions()
-    print_options.page_width = 21.0
-    print_options.page_height = 29.7
-    print_options.background = True
-
-    base64code = browser.print_page(print_options)
-    with open(f"{path}/{fname}.pdf", "wb") as f:
-        f.write(base64.b64decode(base64code))
-
-def html2pdf2(html: str, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None) -> BytesIO:
-    if not browser:
-        browser = get_browser()
-    
-    browser.get("data:text/html;base64," + base64.b64encode(html.encode('utf-8')).decode())
+    browser.get("data:text/html;base64," +
+                base64.b64encode(html.encode('utf-8')).decode())
     if wait_for_id:
         browser.find_element(By.ID, wait_for_id)
 
@@ -107,27 +148,18 @@ def html2pdf2(html: str, browser: Optional[webdriver.Chrome] = None, wait_for_id
     pdf_file = BytesIO(base64.b64decode(base64code))
     return pdf_file
 
-def merge_pdf(files: list[str], fname: str, path: str = os.getcwd()) -> str:
-    outname = f"{path}/{fname}"
-    writer = PdfWriter()
-    for pdf in files:
-        reader = PdfReader(pdf)
-        writer.append(reader)
-    writer.write(outname)
-    return outname
 
-def merge_pdf2(files: list[BytesIO]) -> BytesIO:
+def merge_pdf(files: list[BytesIO]) -> BytesIO:
     writer = PdfWriter()
-    res = BytesIO()
     for pdf in files:
         reader = PdfReader(pdf)
         writer.append(reader)
+    res = BytesIO()
     writer.write(res)
     return res
 
 
-def stamp_pdf(content: str, stamp: str, fname: str, path: str = os.getcwd()) -> str:
-    outname = f"{path}/{fname}"
+def stamp_pdf(content: BytesIO, stamp: BytesIO) -> BytesIO:
     stamp_reader = PdfReader(stamp)
     content_reader = PdfReader(content)
     writer = PdfWriter()
@@ -137,34 +169,12 @@ def stamp_pdf(content: str, stamp: str, fname: str, path: str = os.getcwd()) -> 
         new_page.merge_page(s)
         new_page.mediabox = mediabox
         writer.add_page(new_page)
-    writer.write(outname)
-    return outname
-
-def stamp_pdf2(content: BytesIO, stamp: BytesIO) -> BytesIO:
-    stamp_reader = PdfReader(stamp)
-    content_reader = PdfReader(content)
-    writer = PdfWriter()
     res = BytesIO()
-    for c, s in zip(stamp_reader.pages, content_reader.pages):
-        new_page = c
-        mediabox = c.mediabox
-        new_page.merge_page(s)
-        new_page.mediabox = mediabox
-        writer.add_page(new_page)
     writer.write(res)
     return res
 
 
-def encrypt_pdf(fname: str, password: str) -> None:
-    reader = PdfReader(fname)
-    writer = PdfWriter()
-    for page in reader.pages:
-        writer.add_page(page)
-    writer.encrypt(password)
-    with open(fname, "wb") as f:
-        writer.write(f)
-
-def encrypt_pdf2(content: BytesIO, password: str) -> BytesIO:
+def encrypt_pdf(content: BytesIO, password: str) -> BytesIO:
     reader = PdfReader(content)
     writer = PdfWriter()
     for page in reader.pages:
@@ -221,7 +231,7 @@ def load_files(examen: Examen) -> pd.DataFrame:
     return df
 
 
-def generate_anskey(df:pd.DataFrame,version:str) -> BytesIO:
+def generate_anskey(df: pd.DataFrame, version: str) -> BytesIO:
     items = df[~df['EsPadre']]
     claves = items['clave'].apply(
         lambda x: chr(64+x)
@@ -232,6 +242,7 @@ def generate_anskey(df:pd.DataFrame,version:str) -> BytesIO:
         index=False
     )
     return clave_file
+
 
 def generate_estructura(df: pd.DataFrame) -> BytesIO:
     items = df[~df['EsPadre']]
@@ -261,8 +272,9 @@ def replace_equations(markup: str) -> Optional[str]:
     soup = BeautifulSoup(markup, 'html5lib')
     imgs = soup.find_all(class_='Wirisformula')
     for img in imgs:
+        # type: ignore
         mathml = img['data-mathml'].replace('«', '««').replace('»', '»»') # type: ignore
-        img.replace_with(mathml) # type: ignore
+        img.replace_with(mathml) # type: ignore 
     # quitar <body></body> solo conservar lo de adentro
     result = str(soup.body)[6:-7]
     result = result.replace('««', '<').replace(
@@ -284,8 +296,8 @@ def fix_images(markup: str) -> Optional[str]:
     soup = BeautifulSoup(markup, 'html5lib')
     imgs = soup.find_all('img')
     for img in imgs:
-        if img['src'].startswith('/ftw/PR?'): # type: ignore
-            img['src'] = 'https://app.fasttestweb.com' + img['src'] # type: ignore
+        if img['src'].startswith('/ftw/PR?'):  # type: ignore
+            img['src'] = 'https://app.fasttestweb.com' + img['src']  # type: ignore
     return str(soup.body)[6:-7]
 
 
@@ -315,7 +327,7 @@ def process_items(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def render_item(item_tpl: jinja2.Template, item: pd.Series, resaltar_clave: bool)->str:
+def render_item(item_tpl: jinja2.Template, item: pd.Series, resaltar_clave: bool) -> str:
     return item_tpl.render(
         description=item['Item Text'],
         # segun el vector generado cual debería ser la primera alternativa
@@ -334,185 +346,94 @@ def render_item(item_tpl: jinja2.Template, item: pd.Series, resaltar_clave: bool
     )
 
 
-def generate_sec_html(df: pd.DataFrame, i: int, sec: Seccion, tpl: jinja2.Template, start: int = 1, last: bool = False, extra_css: str = '') -> str:
-    body = '\n'.join(df['html'])
-    end = start + df[~df['EsPadre']].shape[0] - 1
-    prueba = tpl.render(nombre=sec.nombre, num_seccion=i+1, items=body,
-                        start=start, end=end, tiempo=sec.tiempo, last=last, extra_css=extra_css)
-    return prueba
-
-
-def calculate_breaks(html: str, df: pd.DataFrame, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None):
-    if not browser:
-        browser = get_browser()
-
-    browser.get("data:text/html;base64," + base64.b64encode(html.encode('utf-8')).decode())
-    if wait_for_id:
-        browser.find_element(By.ID, wait_for_id)
-    res = browser.execute_script('return getSizes()')
-    total = res['titleSize']
-    max_height = 1024
-    for i, r in enumerate(res['itemSizes']):
-        total += r
-        if total > max_height:
-            df.loc[df['Ord'] == i, 'Blanca'] = True
-            total = r - res['itemMarginTop']/2
-
-
-def generate_content(examen: Examen, df: pd.DataFrame, item_tpl: jinja2.Template, examen_tpl: jinja2.Template, browser: Optional[webdriver.Chrome] = None, path: str = os.getcwd())->list[tuple[str,str,BytesIO]]:
-    start = 1
-    if not browser:
-        browser = get_browser()
-    df['html'] = df.apply(lambda x: render_item(item_tpl, x, examen.resaltar_clave), axis=1)
-    res = []
-    for i, sec in enumerate(examen.secciones):
-        d = df.loc[df['Sec'] == sec.nombre, :].copy()
-        last = (i == (len(examen.secciones)-1))
-        html = generate_sec_html(d, i, sec, examen_tpl, start,
-                          last, '' if examen.extra_css is None else examen.extra_css)
-        if sec.derCuad:
-            calculate_breaks(html, d, browser=browser,
-                             wait_for_id="finished")
-            d['html'] = d.apply(lambda x: render_item(
-                item_tpl, x, examen.resaltar_clave), axis=1)
-            html = generate_sec_html(d, i, sec, examen_tpl, start,
-                              last, '' if examen.extra_css is None else examen.extra_css)
-        start = start + d[~d['EsPadre']].shape[0]
-
-        with open(f"{path}/{sec.nombre}.html", 'w',encoding='utf-8') as f:
-            f.write(html)
-        pdf = html2pdf2(html, browser=browser,
-                 wait_for_id="finished")
-        with open(f"{path}/{sec.nombre}", "wb") as f:
-            f.write(pdf.getvalue())
-        res.append((sec.nombre,html,pdf))
-    return res
-
-
-def generate_background_html(sec: Seccion, tpl: jinja2.Template, grid: str, sec_num: int = 1, start_page: int = 2, path: str = os.getcwd()):
-    reader = PdfReader(f"{path}/{sec.nombre}.pdf")
-    num_pages = len(reader.pages)
-    numchars = len(sec.nombre)
-    if numchars < 20:
-        namesize = 2.5
-    else:
-        namesize = 2.5 * (1-((numchars-19)/(numchars-1)))
-    html = tpl.render(num_pages=num_pages, start_page=start_page, sec_num=sec_num,
-                      sec_name=sec.nombre, size=namesize, derCuad=sec.derCuad, grid=grid)
-    with open(f'{path}/{sec.nombre}-background.html', 'w',encoding='utf-8') as f:
-        f.write(html)
-    return num_pages
-
-
-def generate_backgrounds(examen: Examen, tpl: jinja2.Template, start_page: int = 2, browser: Optional[webdriver.Chrome] = None, path: str = os.getcwd()):
-    if not browser:
-        browser = get_browser()
-    with open('assets/grid.svg',encoding='utf-8') as f:
-        grid = f.read()
-    bgrid = base64.b64encode(grid.encode('utf-8')).decode('utf-8')
-    for i, sec in enumerate(examen.secciones):
-        start_page += generate_background_html(
-            sec, tpl, sec_num=i+1, start_page=start_page, grid=bgrid, path=path)
-        with open(f"{path}/{sec.nombre}-background.html",'r',encoding='utf-8') as f:
-            pdf = html2pdf2(f.read(),browser=browser,wait_for_id="finished")
-            with open(f"{path}/{sec.nombre}-background.pdf", "wb") as f2:
-                f2.write(pdf.getvalue())
-
-
-def generate_sec_pdfs(examen: Examen, path: str = os.getcwd()):
-    secciones = []
-    for sec in examen.secciones:
-        outname = stamp_pdf(
-            content=f"{path}/{sec.nombre}.pdf",
-            stamp=f"{path}/{sec.nombre}-background.pdf",
-            fname=f"{sec.nombre}-{examen.version}-{examen.codigo}.pdf",
-            path=path
-        )
-        secciones.append(outname)
-    return secciones
-
-
-def generar_configuracion_yaml(examen: Examen, path: str = os.getcwd())->str:
-    config = yaml.dump(examen.model_dump(exclude_none=True), default_flow_style=False,
-                       sort_keys=False, allow_unicode=True)
-    outname = f"{path}/config.yml"
-    with open(outname, 'w',encoding='utf-8') as f:
-        f.write(config)
-    return outname
-
-
-def generate(examen: Examen, include_html: bool = False):
+def generate(examen: Examen, include_html: bool = False) -> BytesIO:
     jinja_env = jinja2.Environment(
         # donde están los templates, por defecto es la carpeta actual
         loader=jinja2.FileSystemLoader('templates'), autoescape=True
     )
 
-    # copiar los assets a un directorio temporal
-    pwd = tempfile.TemporaryDirectory()
-
-    for file in os.listdir('assets'):
-        shutil.copy(f'assets/{file}', f'{pwd.name}/{file}')
-
     df = load_files(examen)
 
     # generar archivo de estructura y archivo de claves
-    estructura = generate_estructura(df)
-    ruta_estructura = f"{pwd.name}/ESTRUCTURA-{examen.version}-{examen.codigo}.xlsx"
-    with open(ruta_estructura,'wb') as f:
-        f.write(estructura.getvalue())
-    clave = generate_anskey(df, version=examen.version) # type: ignore
-    ruta_clave = f'{pwd.name}/CLAVE-{examen.version}-{examen.codigo}.xlsx'
-    with open(ruta_clave,'wb') as f:
-        f.write(clave.getvalue())
+    examen.estructura = generate_estructura(df)
+    examen.clave = generate_anskey(df, version=examen.version)  # type: ignore
 
     df = process_items(df)
 
     # Objetos para convertir un html a pdf usando chromium
     browser = get_browser()
+
+    # Plantillas jinja
     item_tpl = jinja_env.get_template('item.tpl.html')
     prueba_tpl = jinja_env.get_template('test.tpl.html')
-    generate_content(examen, df, item_tpl, prueba_tpl,
-                     browser=browser, path=pwd.name)
-
     background_tpl = jinja_env.get_template('background.tpl.html')
-    generate_backgrounds(examen, background_tpl,
-                         start_page=2, browser=browser, path=pwd.name)
 
-    browser.quit()
+    # Assets
+    with open('assets/styles.css', 'r', encoding='utf-8') as f:
+        styles = f.read()
+    with open('assets/grid.svg', 'r', encoding='utf-8') as f:
+        grid = f.read()
+    b64grid = base64.b64encode(grid.encode('utf-8')).decode('utf-8')
 
-    rutas = generate_sec_pdfs(examen, path=pwd.name)
+    # Generar el html de cada item
+    df['html'] = df.apply(lambda x: render_item(
+        item_tpl, x, examen.resaltar_clave), axis=1)
 
-    # Agregar carátula si se selecciono una
-    if examen.caratula:
-        ruta_caratula = f"{pwd.name}/CARÁTULA-{examen.version}.pdf"
-        with open(ruta_caratula, 'wb') as f:
-            f.write(examen.caratula.getbuffer())
-        rutas = [ruta_caratula] + rutas
+    start_item = 1
+    start_page = 2
+    for i, seccion in enumerate(examen.secciones):
+        seccion.items_df = df.loc[df['Sec'] == seccion.nombre, :].copy()
+        last = (i == (len(examen.secciones)-1))
+        seccion.generate_sec_html(
+            prueba_tpl, i+1, styles, start_item, last, examen.extra_css)
+        if seccion.derCuad:
+            seccion.calculate_breaks(browser=browser, wait_for_id="finished")
+            seccion.items_df['html'] = seccion.items_df.apply(lambda x: render_item(
+                item_tpl, x, examen.resaltar_clave), axis=1)
+            seccion.generate_sec_html(
+                prueba_tpl, i+1, styles, start_item, last, examen.extra_css)
+        start_item = start_item + \
+            seccion.items_df[~seccion.items_df['EsPadre']].shape[0]
+        if seccion.html is not None:
+            seccion.pdf = html2pdf(seccion.html, browser=browser,
+                                   wait_for_id="finished")
 
-    ruta_final = merge_pdf(
-        rutas, f"PRUEBA-{examen.version}-{examen.codigo}.pdf", path=pwd.name)
+        seccion.generate_background_html(background_tpl, b64grid, i+1, start_page)
+        if seccion.bhtml is not None:
+            seccion.bpdf = html2pdf(
+                seccion.bhtml, browser=browser, wait_for_id="finished")
+        if seccion.pdf and seccion.bpdf:
+            seccion.pdf_final = stamp_pdf(seccion.pdf, seccion.bpdf)
+        start_page = start_page + seccion.num_pages()
 
-    if (examen.password) and (examen.password != ''):
-        for archivo in rutas + [ruta_final]:
-            encrypt_pdf(archivo, examen.password)
+    examen.pdf = merge_pdf(
+        [seccion.pdf_final for seccion in examen.secciones if seccion.pdf_final])
+    examen.generar_configuracion_yaml()
 
-    ruta_yaml = generar_configuracion_yaml(examen, path=pwd.name)
+    res = BytesIO()
+    with ZipFile(res, 'w') as z:
+        z.writestr(
+            f"PRUEBA-{examen.version}-{examen.codigo}.pdf", examen.pdf.getbuffer())
+        z.writestr(
+            f"ESTRUCTURA-{examen.version}-{examen.codigo}.xlsx", examen.estructura.getbuffer())
+        z.writestr(
+            f"CLAVE-{examen.version}-{examen.codigo}.xlsx", examen.clave.getbuffer())
+        if examen.config_yaml is not None:
+            z.writestr("config.yml", examen.config_yaml)
+        if examen.caratula:
+            z.writestr(f"CARÁTULA-{examen.version}.pdf",
+                       examen.caratula.getbuffer())
+        for seccion in examen.secciones:
+            if seccion.pdf_final:
+                z.writestr(
+                    f"{seccion.nombre}-{examen.version}-{examen.codigo}.pdf", seccion.pdf_final.getbuffer())
+            if include_html and seccion.html:
+                z.writestr(
+                    f"{seccion.nombre}-{examen.version}-{examen.codigo}.html", seccion.html)
+    return res
 
-    rutas = rutas + [ruta_final, ruta_clave, ruta_estructura, ruta_yaml]
 
-    if include_html:
-        rutas = rutas + \
-            [f"{pwd.name}/{r}" for r in os.listdir(pwd.name)
-             if r.endswith('.html')]
-
-    ruta_zip = f"{pwd.name}/{examen.version}-{examen.codigo}.zip"
-    with ZipFile(ruta_zip, 'w') as z:
-        for ruta_final in rutas:
-            z.write(ruta_final, arcname=ruta_final.split('/')[-1])
-    return ruta_zip, pwd
-
-
-def load_yaml(obj: BytesIO)->Examen:
+def load_yaml(obj: BytesIO) -> Examen:
     yml = yaml.safe_load(obj)
     return Examen.model_validate(yml)
 
@@ -533,7 +454,7 @@ def main():
             value=False,
             help='Los archivos HTML sirven para depurar errores'
         )
-    
+
     if est_config:
         default_examen = load_yaml(est_config)
     else:
@@ -600,7 +521,7 @@ def main():
         examen['codigo'] = int(time.time())
 
     for i in range(examen['nsecciones']):
-        if default_examen.nsecciones != 0:
+        if default_examen.nsecciones() != 0:
             default_seccion = default_examen.secciones[i]
         else:
             default_seccion = Seccion()
@@ -643,15 +564,15 @@ def main():
     if btn:
         with resultados:
             with st.spinner('Generando archivos...'):
-                ruta_zip, _ = generate(Examen.model_validate(examen), include_html)
+                ex = Examen.model_validate(examen)
+                zip_file = generate(ex, include_html)
                 st.header("Archivos generados")
-                with open(ruta_zip, 'rb') as file:
-                    st.download_button(
-                        "Descargar Archivos",
-                        data=file,
-                        file_name=ruta_zip.split('/')[-1],
-                        mime="application/zip"
-                    )
+                st.download_button(
+                    "Descargar Archivos",
+                    data=zip_file,
+                    file_name=f"{ex.version}-{ex.codigo}.zip",
+                    mime="application/zip"
+                )
 
 
 if __name__ == "__main__":
