@@ -172,6 +172,7 @@ def encrypt_pdf2(content: BytesIO, password: str) -> BytesIO:
     writer.encrypt(password)
     res = BytesIO()
     writer.write(res)
+    return res
 
 
 def load_files(examen: Examen) -> pd.DataFrame:
@@ -376,14 +377,14 @@ def generate_content(examen: Examen, df: pd.DataFrame, item_tpl: jinja2.Template
                 item_tpl, x, examen.resaltar_clave), axis=1)
             html = generate_sec_html(d, i, sec, examen_tpl, start,
                               last, '' if examen.extra_css is None else examen.extra_css)
-        start = start + d[d['EsPadre'] == False].shape[0]
+        start = start + d[~d['EsPadre']].shape[0]
 
         with open(f"{path}/{sec.nombre}.html", 'w',encoding='utf-8') as f:
             f.write(html)
         pdf = html2pdf2(html, browser=browser,
                  wait_for_id="finished")
         with open(f"{path}/{sec.nombre}", "wb") as f:
-            f.write(pdf)
+            f.write(pdf.getvalue())
         res.append((sec.nombre,html,pdf))
     return res
 
@@ -412,8 +413,8 @@ def generate_backgrounds(examen: Examen, tpl: jinja2.Template, start_page: int =
     for i, sec in enumerate(examen.secciones):
         start_page += generate_background_html(
             sec, tpl, sec_num=i+1, start_page=start_page, grid=bgrid, path=path)
-        with open(f"{path}/{sec.nombre}-background.html",'rb') as f:
-            pdf = html2pdf2(BytesIO(f.read()),browser=browser,wait_for_id="finished")
+        with open(f"{path}/{sec.nombre}-background.html",'r',encoding='utf-8') as f:
+            pdf = html2pdf2(f.read(),browser=browser,wait_for_id="finished")
             with open(f"{path}/{sec.nombre}-background.pdf", "wb") as f2:
                 f2.write(pdf.getvalue())
 
