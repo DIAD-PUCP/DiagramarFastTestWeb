@@ -36,7 +36,7 @@ class Seccion(BaseModel):
     tiempo: str = ''
     saltos: Annotated[list[str], BeforeValidator(validar_saltos)] = []
     derCuad: bool = False
-    items_df: Optional[pd.DataFrame] = Field(default=None, exclude=True)
+    items_df: pd.DataFrame = Field(default=pd.DataFrame(), exclude=True)
     html: Optional[str] = Field(default=None, exclude=True)
     pdf_final: Optional[BytesIO] = Field(default=None, exclude=True)
     pdf: Optional[BytesIO] = Field(default=None, exclude=True)
@@ -63,7 +63,7 @@ class Seccion(BaseModel):
         return ','.join(saltos) if saltos else ''
 
     def generate_sec_html(self, tpl: jinja2.Template, num_seccion: int, styles: str, start: int = 1, last: bool = False, extra_css: Optional[str] = None):
-        if self.items_df is not None:
+        if not self.items_df.empty:
             body = '\n'.join(self.items_df['html'])
             end = start + self.items_df[self.items_df['EsPadre']].shape[0] - 1
             html = tpl.render(
@@ -73,7 +73,7 @@ class Seccion(BaseModel):
             self.html = html
 
     def calculate_breaks(self, browser: Optional[webdriver.Chrome] = None, wait_for_id: Optional[str] = None):
-        if (self.html is not None) and (self.items_df is not None):
+        if (self.html is not None) and (not self.items_df.empty):
             if not browser:
                 browser = get_browser()
 
@@ -106,6 +106,7 @@ class Examen(BaseModel):
     resaltar_clave: bool = False
     secciones: list[Seccion] = []
     extra_css: Optional[str] = None
+    include_html: bool = Field(default=False, exclude=True)
     pdf: Optional[BytesIO] = Field(default=None, exclude=True)
     clave: Optional[BytesIO] = Field(default=None, exclude=True)
     estructura: Optional[BytesIO] = Field(default=None, exclude=True)
@@ -346,7 +347,7 @@ def render_item(item_tpl: jinja2.Template, item: pd.Series, resaltar_clave: bool
     )
 
 
-def generate(examen: Examen, include_html: bool = False) -> BytesIO:
+def generate(examen: Examen) -> BytesIO:
     jinja_env = jinja2.Environment(
         # donde están los templates, por defecto es la carpeta actual
         loader=jinja2.FileSystemLoader('templates'), autoescape=True
@@ -427,7 +428,7 @@ def generate(examen: Examen, include_html: bool = False) -> BytesIO:
             if seccion.pdf_final:
                 z.writestr(
                     f"{seccion.nombre}-{examen.version}-{examen.codigo}.pdf", seccion.pdf_final.getbuffer())
-            if include_html and seccion.html:
+            if examen.include_html and seccion.html:
                 z.writestr(
                     f"{seccion.nombre}-{examen.version}-{examen.codigo}.html", seccion.html)
     return res
@@ -555,6 +556,7 @@ def main():
             ),
         }
         examen['secciones'].append(sec)
+        examen['include_html'] = include_html
 
     submit = st.container()
     resultados = st.container()
@@ -565,7 +567,7 @@ def main():
         with resultados:
             with st.spinner('Generando archivos...'):
                 ex = Examen.model_validate(examen)
-                zip_file = generate(ex, include_html)
+                zip_file = generate(ex)
                 st.header("Archivos generados")
                 st.download_button(
                     "Descargar Archivos",
