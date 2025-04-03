@@ -31,17 +31,17 @@ def validar_saltos(saltos: str) -> list[str]:
 
 class Seccion(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    archivo: Optional[BytesIO] = Field(default=None, exclude=True)
+    archivo: Annotated[Optional[BytesIO], Field(exclude=True)] = None
     nombre: str = ''
     tiempo: str = ''
     saltos: Annotated[list[str], BeforeValidator(validar_saltos)] = []
     derCuad: bool = False
-    items_df: pd.DataFrame = Field(default=pd.DataFrame(), exclude=True)
-    html: Optional[str] = Field(default=None, exclude=True)
-    pdf_final: Optional[BytesIO] = Field(default=None, exclude=True)
-    pdf: Optional[BytesIO] = Field(default=None, exclude=True)
-    bhtml: Optional[str] = Field(default=None, exclude=True)
-    bpdf: Optional[BytesIO] = Field(default=None, exclude=True)
+    items_df: Annotated[pd.DataFrame, Field(exclude=True)] = pd.DataFrame()
+    html: Annotated[Optional[str], Field(exclude=True)] = None
+    pdf_final: Annotated[Optional[BytesIO], Field(exclude=True)] = None
+    pdf: Annotated[Optional[BytesIO], Field(exclude=True)] = None
+    bhtml: Annotated[Optional[str], Field(exclude=True)] = None
+    bpdf: Annotated[Optional[BytesIO], Field(exclude=True)] = None
 
     def num_pages(self) -> int:
         if self.pdf is not None:
@@ -102,15 +102,15 @@ class Examen(BaseModel):
     version: Optional[str] = None
     codigo: int = 0
     password: Optional[str] = None
-    caratula: Optional[BytesIO] = Field(default=None, exclude=True)
+    caratula: Annotated[Optional[BytesIO], Field(exclude=True)] = None
     resaltar_clave: bool = False
     secciones: list[Seccion] = []
     extra_css: Optional[str] = None
-    include_html: bool = Field(default=False, exclude=True)
-    pdf: Optional[BytesIO] = Field(default=None, exclude=True)
-    clave: Optional[BytesIO] = Field(default=None, exclude=True)
-    estructura: Optional[BytesIO] = Field(default=None, exclude=True)
-    config_yaml: Optional[str] = Field(default=None, exclude=True)
+    include_html: Annotated[bool, Field(exclude=True)] = False
+    pdf: Annotated[Optional[BytesIO], Field(exclude=True)] = None
+    clave: Annotated[Optional[BytesIO], Field(exclude=True)] = None
+    estructura: Annotated[Optional[BytesIO], Field(exclude=True)] = None
+    config_yaml: Annotated[Optional[str], Field(exclude=True)] = None
 
     def nsecciones(self) -> int:
         return len(self.secciones)
