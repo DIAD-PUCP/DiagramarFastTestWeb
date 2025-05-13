@@ -407,8 +407,10 @@ def generate(examen: Examen) -> BytesIO:
             seccion.pdf_final = stamp_pdf(seccion.pdf, seccion.bpdf)
         start_page = start_page + seccion.num_pages()
 
-    examen.pdf = merge_pdf(
-        [seccion.pdf_final for seccion in examen.secciones if seccion.pdf_final])
+    examen_pdfs = [seccion.pdf_final for seccion in examen.secciones if seccion.pdf_final]
+    if examen.caratula:
+        examen_pdfs = [examen.caratula] + examen_pdfs
+    examen.pdf = merge_pdf(examen_pdfs)
     examen.generar_configuracion_yaml()
 
     res = BytesIO()
