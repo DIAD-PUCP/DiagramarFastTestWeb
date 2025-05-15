@@ -121,6 +121,10 @@ li.choice.resaltar {
   background-color: yellow;
 }
 
+li.choice:has(p .MathJax_Display){
+  margin: 0.5em 0em;
+}
+
 @page{
   size: A4;
   margin: 1.3cm;
