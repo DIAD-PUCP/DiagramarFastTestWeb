@@ -100,13 +100,13 @@ ol.items{
 
 .choice>*{
   padding-left: 1em;
-  margin-top: 0.2em;
-  margin-bottom: 0.2em;
+  margin-top: 0.3em;
+  margin-bottom: 0.3em;
 }
 
 .choice .math {
-  margin-bottom: 0.25em!important;
-  margin-top: 0.25em!important;
+  margin-bottom: 0.35em!important;
+  margin-top: 0.35em!important;
 }
 
 .item .description{
@@ -119,10 +119,6 @@ ol.items{
 
 li.choice.resaltar {
   background-color: yellow;
-}
-
-li.choice:has(p .MathJax_Display){
-  margin: 0.5em 0em;
 }
 
 @page{
