@@ -65,7 +65,7 @@ class Seccion(BaseModel):
     def generate_sec_html(self, tpl: jinja2.Template, num_seccion: int, styles: str, start: int = 1, last: bool = False, extra_css: Optional[str] = None):
         if not self.items_df.empty:
             body = '\n'.join(self.items_df['html'])
-            end = start + self.items_df[self.items_df['EsPadre']].shape[0] - 1
+            end = start + self.items_df[~self.items_df['EsPadre']].shape[0] - 1
             html = tpl.render(
                 nombre=self.nombre, num_seccion=num_seccion, items=body,
                 start=start, end=end, tiempo=self.tiempo, last=last, extra_css=extra_css or '',
