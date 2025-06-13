@@ -270,7 +270,7 @@ def generate_estructura(df: pd.DataFrame) -> BytesIO:
 def replace_equations(markup: str) -> Optional[str]:
     if pd.isna(markup):
         return
-    soup = BeautifulSoup(markup, 'html5lib')
+    soup = BeautifulSoup(markup, 'lxml')
     imgs = soup.find_all(class_='Wirisformula')
     for img in imgs:
         # type: ignore
@@ -294,7 +294,7 @@ def replace_equations(markup: str) -> Optional[str]:
 def fix_images(markup: str) -> Optional[str]:
     if pd.isna(markup):
         return
-    soup = BeautifulSoup(markup, 'html5lib')
+    soup = BeautifulSoup(markup, 'lxml')
     imgs = soup.find_all('img')
     for img in imgs:
         if img['src'].startswith('/ftw/PR?'):  # type: ignore
