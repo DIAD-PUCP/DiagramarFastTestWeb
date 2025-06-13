@@ -12,10 +12,8 @@ RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula selec
 RUN apt-get install -y dumb-init fontconfig ttf-mscorefonts-installer --no-install-recommends
 RUN fc-cache -f -v
 
-# Install chrome
-RUN apt-get install -y wget
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-RUN apt-get install -y ./google-chrome-stable_current_amd64.deb
+# Install chromium
+RUN  apt-get install -y chromium-driver --no-install-recommends
 
 # Install python packages
 COPY requirements.txt ./
