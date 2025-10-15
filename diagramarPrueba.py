@@ -165,7 +165,7 @@ def get_browser() -> webdriver.Chrome:
     options.add_argument("--disable-setuid-sandbox")
     options.add_argument("--disable-gpu")
     driver = webdriver.Chrome(options=options)
-    driver.implicitly_wait(2)
+    driver.implicitly_wait(4)
     return driver
 
 
