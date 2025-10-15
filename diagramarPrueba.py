@@ -19,6 +19,7 @@ from numpy.random import default_rng
 from pypdf import PdfReader, PdfWriter
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.print_page_options import PrintOptions
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
@@ -102,7 +103,10 @@ class Seccion(BaseModel):
                 + base64.b64encode(self.html.encode("utf-8")).decode()
             )
             if wait_for_id:
-                browser.find_element(By.ID, wait_for_id)
+                try:
+                    browser.find_element(By.ID, wait_for_id)
+                except NoSuchElementException:
+                    time.sleep(5)
             res = browser.execute_script("return getSizes()")
             total = res["titleSize"]
             max_height = 1024
@@ -176,7 +180,10 @@ def html2pdf(
         "data:text/html;base64," + base64.b64encode(html.encode("utf-8")).decode()
     )
     if wait_for_id:
-        browser.find_element(By.ID, wait_for_id)
+        try:
+            browser.find_element(By.ID, wait_for_id)
+        except NoSuchElementException:
+            time.sleep(5)
 
     print_options = PrintOptions()
     print_options.page_width = 21.0
