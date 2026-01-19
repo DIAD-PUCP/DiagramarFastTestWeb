@@ -1,25 +1,26 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from io import BytesIO
+import base64
 import re
 import time
-import base64
-from typing import Annotated, Optional
 import warnings
+from io import BytesIO
+from typing import Annotated, Optional
 from zipfile import ZipFile
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_serializer
-import yaml
-import pandas as pd
-import numpy as np
-import streamlit as st
+
 import jinja2
+import numpy as np
+import pandas as pd
+import streamlit as st
+import yaml
 from bs4 import BeautifulSoup
 from numpy.random import default_rng
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_serializer
 from pypdf import PdfReader, PdfWriter
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.print_page_options import PrintOptions
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
@@ -232,7 +233,7 @@ def encrypt_pdf(content: BytesIO, password: str) -> BytesIO:
 
 
 def load_files(examen: Examen) -> pd.DataFrame:
-    l = []
+    df_l = []
     for sec in examen.secciones:
         d = pd.read_excel(sec.archivo).reset_index().rename(columns={"index": "Pos"})
         d = d.set_index("Unique Id")
@@ -258,9 +259,9 @@ def load_files(examen: Examen) -> pd.DataFrame:
 
         d.loc[d.iloc[-1:].index, "Ultimo"] = True
 
-        l.append(d)
+        df_l.append(d)
 
-    df = pd.concat(l)
+    df = pd.concat(df_l)
 
     # agregar numero de texto a los textos
     df = df.join(
@@ -338,9 +339,8 @@ def replace_equations(markup: str) -> Optional[str]:
     soup = BeautifulSoup(markup, "lxml")
     imgs = soup.find_all(class_="Wirisformula")
     for img in imgs:
-        # type: ignore
         mathml = img["data-mathml"].replace("«", "««").replace("»", "»»")  # type: ignore
-        img.replace_with(mathml)  # type: ignore
+        img.replace_with(mathml)
     # quitar <body></body> solo conservar lo de adentro
     result = str(soup.body)[6:-7]
     result = (
@@ -608,7 +608,7 @@ def main():
     if examen["codigo"] == 0:
         examen["codigo"] = int(time.time())
 
-    for i in range(examen["nsecciones"]):
+    for i in range(examen["nsecciones"]):  # type: ignore
         if default_examen.nsecciones() != 0:
             default_seccion = default_examen.secciones[i]
         else:
