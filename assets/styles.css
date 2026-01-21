@@ -109,6 +109,17 @@ ol.items{
   margin-top: 0.35em!important;
 }
 
+p mjx-container[display]{
+  display: inline;
+  padding: 0;
+}
+
+li.choice p mjx-container {
+  display: inline-block;
+  padding:0;
+  margin: 0.25em 0;
+}
+
 .item .description{
   font-weight: bold;
 }

@@ -28,32 +28,39 @@
         <h4>(Puede revisar solo las preguntas correspondientes a {{ nombre }})</h4>
       </div>
     </div>
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <script type="text/x-mathjax-config">
-      MathJax.Hub.Config({
-        "HTML-CSS":{
-          styles: {
-            ".MathJax_Display": {
-              "text-align": "center",
-              margin:       "1em 0em",
-              display: "inline"
-            },
-          }
-        }
-      });
-    </script>
     <script>
-      MathJax.Hub.Queue(function () {
-        let d = document.createElement('div');
-        d.id = 'finished'
-        document.body.appendChild(d);
-      });
-
+      window.MathJax = {
+	options: {
+	  ignoreHtmlClass: 'tex2jax_ignore',
+	  processHtmlClass: 'tex2jax_process'
+	},
+	tex: {
+	  autoload: {
+	    color: [],
+	    colorv2: ['color']
+	  },
+	  packages: {'[+]': ['noerrors']}
+	},
+	loader: {
+	  load: ['[tex]/noerrors']
+	},
+	startup: {
+	  pageReady: () => {
+	    return MathJax.startup.defaultPageReady().then(() => {
+	      let d = document.createElement('div');
+	      d.id = 'finished'
+	      document.body.appendChild(d);
+	    });
+	  }
+	}
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>
       function getSizes(){
         let titleSize = document.querySelector('.title').getBoundingClientRect()['height'];
         let itemMarginTop = parseFloat(window.getComputedStyle(document.querySelector('.item-1'))['marginTop']);
         let itemSizes = Array.from(document.querySelectorAll('.item')).map(item=>item.getBoundingClientRect()['height'] + itemMarginTop);
-
         return {titleSize:titleSize,itemMarginTop:itemMarginTop,itemSizes:itemSizes};
       }
     </script>
