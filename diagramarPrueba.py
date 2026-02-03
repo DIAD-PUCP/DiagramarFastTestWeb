@@ -518,10 +518,14 @@ def generate(examen: Examen) -> BytesIO:
                     f"{seccion.nombre}-{examen.version}-{examen.codigo}.pdf",
                     seccion.pdf_final.getbuffer(),
                 )
-            if examen.include_html and seccion.html:
+            if examen.include_html and seccion.html and seccion.bhtml:
                 z.writestr(
                     f"{seccion.nombre}-{examen.version}-{examen.codigo}.html",
                     seccion.html,
+                )
+                z.writestr(
+                    f"background-{seccion.nombre}-{examen.version}-{examen.codigo}.html",
+                    seccion.bhtml,
                 )
     return res
 
