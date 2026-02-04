@@ -615,7 +615,6 @@ def main():
             default_seccion = Seccion()
         container = st.container()
         container.subheader(f"Sección {i + 1}")
-        st.write(default_seccion.derCuad)
         sec = {
             "archivo": container.file_uploader(
                 f"Archivo {i + 1}",
