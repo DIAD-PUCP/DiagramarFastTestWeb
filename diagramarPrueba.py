@@ -619,6 +619,7 @@ def main():
             default_seccion = Seccion()
         container = st.container()
         container.subheader(f"Sección {i + 1}")
+        st.write(default_seccion.derCuad)
         sec = {
             "archivo": container.file_uploader(
                 f"Archivo {i + 1}",
@@ -640,10 +641,9 @@ def main():
                 help="Indicar el número de ítem después del cual se quiere insertar un salto de página, separar por comas si se quiere indicar varios ej. 5,6,7",
             ),
             "derCuad": container.checkbox(
-                "La cara derecha es cuadriculada",
+                f"La cara derecha es cuadriculada {i + 1}",
                 value=default_seccion.derCuad,
                 help="Si se desea que la cara derecha (abierto como libro) sea cuadriculada",
-                key=f"Quad{i}",
             ),
         }
         examen["secciones"].append(sec)
