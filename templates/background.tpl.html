@@ -40,13 +40,20 @@
 
         @page{
           size: A4 ;
+          @bottom-center{
+            content: counter(page);
+            height: 1cm;
+            font-weight: bold;
+            text-align: center;
+            font-size: 1em;
+          }
         }
         @page:left {
           {% if derCuad %}
           background-image: url("data:image/svg+xml;base64,{{grid}}");
           background-size: cover;
           {% endif %}
-          @top-right-corner {
+          /*@top-right-corner {
             content: element(numseccionRunning);
             background-color: grey;
             width: 2cm;
@@ -85,7 +92,7 @@
             color: white;
             text-align: center;
             font-size: 1.2em;
-          }
+          }*/
 
         }
         div.pagedjs_margin-right{
@@ -101,8 +108,8 @@
     </style>
   </head>
   <body>
-    <h1 id="numseccion">{{sec_num}}</h1>
-    <h1 id="seccion">{{sec_name | upper}}</h1>
+    <!-- <h1 id="numseccion">{{sec_num}}</h1> -->
+    <!-- <h1 id="seccion">{{sec_name | upper}}</h1> -->
     {% for i in range(num_pages) %}
     <div class="pagina pagina{{start_page+i}}"></div>
     {% else %}
