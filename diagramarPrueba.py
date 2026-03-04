@@ -575,7 +575,7 @@ def main():
             value=default_examen.resaltar_clave,
             help="Resalta la clave en amarillo para la revisión",
         ),
-        "nsecciones": datos.number_input("Número de secciones", value=2, format="%d"),
+        "nsecciones": datos.number_input("Número de secciones", value=1, format="%d"),
         "secciones": [],
     }
     extra_styles = datos.checkbox(
@@ -608,7 +608,7 @@ def main():
     if examen["codigo"] == 0:
         examen["codigo"] = int(time.time())
 
-    for i in range(examen["nsecciones"]):  # type: ignore
+    for i in range(examen["nsecciones"]):
         if default_examen.nsecciones() != 0:
             default_seccion = default_examen.secciones[i]
         else:
