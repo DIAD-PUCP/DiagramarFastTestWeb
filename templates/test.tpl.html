@@ -17,7 +17,6 @@
       <ol class="items" start="{{ start }}">
       {{ items | safe }}
       </ol>
-      
       <div class="fin">
         {% if not last %}
         <h3>NO PASE A LA SIGUIENTE PÁGINA HASTA QUE SE LE INDIQUE.</h3>
@@ -30,32 +29,30 @@
     </div>
     <script>
       window.MathJax = {
-	options: {
-	  ignoreHtmlClass: 'tex2jax_ignore',
-	  processHtmlClass: 'tex2jax_process'
-	},
-	tex: {
-	  autoload: {
-	    color: [],
-	    colorv2: ['color']
-	  },
-	  packages: {'[+]': ['noerrors']}
-	},
-	loader: {
-	  load: ['[tex]/noerrors']
-	},
-	startup: {
-	  pageReady: () => {
-	    return MathJax.startup.defaultPageReady().then(() => {
-	      let d = document.createElement('div');
-	      d.id = 'finished'
-	      document.body.appendChild(d);
-	    });
-	  }
-	}
+        options: {
+          ignoreHtmlClass: 'tex2jax_ignore',
+          processHtmlClass: 'tex2jax_process'
+        },
+        tex: {
+          autoload: {
+            color: [],
+            colorv2: ['color']
+          },
+          packages: {'[+]': ['noerrors']}
+        },
+        loader: {
+          load: ['[tex]/noerrors']
+        }
       };
     </script>
     <script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script type="module">
+      MathJax.startup.promise.then(() => {
+        let d = document.createElement('div');
+        d.id = 'finished'
+        document.body.appendChild(d);
+      });
+    </script>
     <script>
       function getSizes(){
         let titleSize = document.querySelector('.title').getBoundingClientRect()['height'];
