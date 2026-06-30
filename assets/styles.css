@@ -132,6 +132,10 @@ li.choice.resaltar {
   background-color: yellow;
 }
 
+table,tr,th,td{
+  border: 1px solid black!important;
+}
+
 @page{
   size: A4;
   margin: 1.3cm;
